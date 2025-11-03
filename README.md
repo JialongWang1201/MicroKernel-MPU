@@ -78,44 +78,7 @@ fault last
 
 This is the fastest way to understand the repo at a glance.
 
-### 1. Control Plane
-
-```mermaid
-flowchart TB
-    A[Manifest Source] --> B[Compiler and Generators]
-    B --> C[Host Tooling]
-    C --> D[CI and HIL Gates]
-    C --> E[STM32F446 Runtime]
-```
-
-### 2. Target Runtime
-
-```mermaid
-flowchart TB
-    A[CLI and Shell] --> B[Bringup Engine]
-    B --> C[Telemetry and Snapshot]
-    C --> D[Analysis Engine]
-    B --> E[KDI Driver Domains]
-    C --> F[VM32 Runtime]
-    D --> G[Kernel BSP and Hardware]
-    E --> G
-    F --> G
-```
-
-### 3. Observation Flow
-
-```mermaid
-flowchart TB
-    A[UART Logs and Triage Bundle] --> B[Triage and Dashboard Tools]
-    B --> C[Human Triage or CI Decision]
-```
-
-<details>
-<summary>Open the original system layout SVG</summary>
-
 ![MicroKernel-MPU system layout](docs/assets/system-layout.svg)
-
-</details>
 
 <details>
 <summary>ASCII architecture snapshot</summary>
