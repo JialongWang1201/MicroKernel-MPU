@@ -39,8 +39,18 @@ Then use the common flows:
 mkdbg build
 mkdbg flash
 mkdbg attach
+mkdbg attach --break main --command continue --command bt --batch
 mkdbg snapshot --port /dev/cu.usbmodem21303
 mkdbg hil --port /dev/cu.usbmodem21303
+```
+
+Scripted attach flows can chain GDB actions without dropping into an
+interactive prompt. `--break` adds `break <location>`, `--command`
+adds one `-ex` command, and `--batch` exits after the commands finish:
+
+```bash
+mkdbg attach --break HardFault_Handler --command continue --command bt --batch
+mkdbg attach --command "monitor reset halt" --command "info registers" --batch
 ```
 
 ## External Repos

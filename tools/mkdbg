@@ -344,6 +344,8 @@ def cmd_attach(args: argparse.Namespace) -> int:
 
   attach_cmd = repo.get("attach_cmd")
   if attach_cmd:
+    if args.breakpoints or args.gdb_commands or args.batch:
+      die("attach_cmd cannot be combined with --break, --command, or --batch")
     return run_shell(format_command(attach_cmd, ctx), repo_root, args.dry_run)
 
   elf_path = ctx["elf_path"]
@@ -359,10 +361,15 @@ def cmd_attach(args: argparse.Namespace) -> int:
       "openocd_server_cmd",
       f'openocd -f {shlex.quote(openocd_cfg)} -c "gdb_port 3333; init; reset halt"',
   )
-  gdb_cmd = (
-      f"{shlex.quote(gdb_bin)} {shlex.quote(elf_path)} "
-      f"-ex {shlex.quote(f'target extended-remote {gdb_target}')}"
-  )
+  gdb_parts = [shlex.quote(gdb_bin), shlex.quote(elf_path)]
+  if args.batch:
+    gdb_parts.append("-batch")
+  gdb_parts.extend(["-ex", shlex.quote(f"target extended-remote {gdb_target}")])
+  for breakpoint in args.breakpoints:
+    gdb_parts.extend(["-ex", shlex.quote(f"break {breakpoint}")])
+  for command in args.gdb_commands:
+    gdb_parts.extend(["-ex", shlex.quote(command)])
+  gdb_cmd = " ".join(gdb_parts)
 
   print(f"[mkdbg] cwd={repo_root}")
   print(f"[mkdbg] openocd={openocd_cmd}")
@@ -441,6 +448,21 @@ def build_parser() -> argparse.ArgumentParser:
   p_attach = sub.add_parser("attach", help="launch a debug session")
   p_attach.add_argument("repo", nargs="?", help="repo name (default: config default_repo)")
   p_attach.add_argument("--port", help="optional serial override for templates")
+  p_attach.add_argument("--break",
+                        dest="breakpoints",
+                        action="append",
+                        default=[],
+                        metavar="LOCATION",
+                        help="add one gdb breakpoint before running commands")
+  p_attach.add_argument("--command",
+                        dest="gdb_commands",
+                        action="append",
+                        default=[],
+                        metavar="GDB_CMD",
+                        help="add one gdb command (-ex) before handing off to gdb")
+  p_attach.add_argument("--batch",
+                        action="store_true",
+                        help="run gdb in batch mode and exit after commands")
   p_attach.add_argument("--dry-run", action="store_true", help="print commands without running them")
   p_attach.add_argument("--server-wait-s",
                         type=float,

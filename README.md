@@ -167,6 +167,7 @@ mkdbg init --name microkernel --port /dev/cu.usbmodemXXXX
 mkdbg build
 mkdbg flash
 mkdbg attach
+mkdbg attach --break main --command continue --command bt --batch
 mkdbg snapshot --port /dev/cu.usbmodemXXXX
 mkdbg hil --port /dev/cu.usbmodemXXXX
 mkdbg repo add tahoe --path ../TahoeOS --build-cmd "make -j4"
