@@ -5,6 +5,7 @@
 #include <stdarg.h>
 #include <ctype.h>
 #include "board.h"
+#include "build_info.h"
 #include "mpu_demo.h"
 #include "static_assert.h"
 #include "FreeRTOS.h"
@@ -151,6 +152,20 @@ volatile uint8_t g_shared_stats[STATS_BUF_REGION_SIZE]
   __attribute__((section(".shared_stats"), aligned(STATS_BUF_REGION_SIZE)));
 
 extern void vMPUClearKernelObjectPool(void);
+
+static void emit_boot_identity(void)
+{
+  char buf[160];
+  snprintf(buf, sizeof(buf),
+           "Build id=0x%08lX git=%s %s profile=%s board=%s uart=%s\r\n",
+           (unsigned long)BUILD_INFO_ID,
+           BUILD_INFO_GIT_SHA,
+           BUILD_INFO_GIT_STATE,
+           BUILD_INFO_PROFILE,
+           board_name(),
+           board_uart_port_label());
+  board_uart_write(buf);
+}
 
 static void enable_fpu(void)
 {
@@ -6508,7 +6523,8 @@ int main(void)
   board_uart_init();
   board_adc_init();
   enable_fpu();
-  board_uart_write("MicroKernel-MPU boot\r\n");
+  board_uart_write(BUILD_INFO_FIRMWARE_NAME " boot\r\n");
+  emit_boot_identity();
   fault_boot_init(board_reset_flags_read());
   board_reset_flags_clear();
   fault_emit_reset_cause_human();
@@ -6548,7 +6564,7 @@ int main(void)
   g_shared_ctrl.alarm_mv = 0;
   g_shared_ctrl.alarm_enabled = 0;
   g_shared_ctrl.snapshot_req = 0;
-  g_shared_ctrl.build_id = 0x20260204U;
+  g_shared_ctrl.build_id = BUILD_INFO_ID;
   g_shared_ctrl.mv_scale_uV = 3300000U;
   g_shared_ctrl.adc_full_scale = 4095U;
   g_shared_ctrl.cfg_flags = 0U;

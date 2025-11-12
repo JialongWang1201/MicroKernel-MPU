@@ -133,6 +133,7 @@ Common options:
 ```bash
 VM32_MEM_SIZE=256 bash tools/build.sh
 BOARD_UART_PORT=2 bash tools/build.sh
+BUILD_PROFILE=debug bash tools/build.sh
 ```
 
 `mkdbg` wraps these same primitives behind one repo-aware CLI:
@@ -151,6 +152,13 @@ UART mapping:
 - `1`: USART1 (PA9/PA10)
 - `2`: USART2 (PA2/PA3, default)
 - `3`: USART3 (PB10/PB11)
+
+The early boot banner now prints firmware identity on UART:
+
+```text
+MicroKernel-MPU boot
+Build id=0x1A2B3C4D git=1a2b3c4d clean profile=debug board=Nucleo-F446RE uart=USART2
+```
 
 ### 2.3 Core operator commands
 

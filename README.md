@@ -50,6 +50,15 @@ Optional build knobs:
 ```bash
 VM32_MEM_SIZE=256 bash tools/build.sh
 BOARD_UART_PORT=2 bash tools/build.sh
+BUILD_PROFILE=debug bash tools/build.sh
+```
+
+The boot banner now emits firmware identity on UART so `watch`, `probe`, and
+future incident tooling can confirm what image is running:
+
+```text
+MicroKernel-MPU boot
+Build id=0x1A2B3C4D git=1a2b3c4d clean profile=debug board=Nucleo-F446RE uart=USART2
 ```
 
 ### First Board Commands

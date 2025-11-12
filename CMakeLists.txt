@@ -6,6 +6,51 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 
 set(VM32_MEM_SIZE "4096" CACHE STRING "VM32 memory size in bytes (256/1024/4096)")
 set(BOARD_UART_PORT "2" CACHE STRING "UART port for VCP (1/2/3)")
+set(BUILD_PROFILE "default" CACHE STRING "Build profile label embedded in firmware identity")
+
+set(BUILD_INFO_FIRMWARE_NAME "MicroKernel-MPU")
+set(BUILD_INFO_BOARD_NAME "Nucleo-F446RE")
+set(BUILD_INFO_GIT_SHA "nogit")
+set(BUILD_INFO_GIT_DIRTY 0)
+set(BUILD_INFO_GIT_STATE "clean")
+set(BUILD_INFO_ID_HEX "0x4D4B4442U")
+
+find_package(Git QUIET)
+if(GIT_FOUND)
+  execute_process(
+    COMMAND "${GIT_EXECUTABLE}" -C "${CMAKE_CURRENT_LIST_DIR}" rev-parse --short=8 HEAD
+    OUTPUT_VARIABLE BUILD_INFO_GIT_SHA
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+    RESULT_VARIABLE BUILD_INFO_GIT_SHA_RC
+  )
+  if(NOT BUILD_INFO_GIT_SHA_RC EQUAL 0 OR BUILD_INFO_GIT_SHA STREQUAL "")
+    set(BUILD_INFO_GIT_SHA "nogit")
+  else()
+    string(TOUPPER "${BUILD_INFO_GIT_SHA}" BUILD_INFO_GIT_SHA_UPPER)
+    if(BUILD_INFO_GIT_SHA_UPPER MATCHES "^[0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F]$")
+      set(BUILD_INFO_ID_HEX "0x${BUILD_INFO_GIT_SHA_UPPER}U")
+    endif()
+  endif()
+
+  execute_process(
+    COMMAND "${GIT_EXECUTABLE}" -C "${CMAKE_CURRENT_LIST_DIR}" status --porcelain --untracked-files=no
+    OUTPUT_VARIABLE BUILD_INFO_GIT_STATUS
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+    RESULT_VARIABLE BUILD_INFO_GIT_STATUS_RC
+  )
+  if(BUILD_INFO_GIT_STATUS_RC EQUAL 0 AND NOT BUILD_INFO_GIT_STATUS STREQUAL "")
+    set(BUILD_INFO_GIT_DIRTY 1)
+    set(BUILD_INFO_GIT_STATE "dirty")
+  endif()
+endif()
+
+configure_file(
+  ${CMAKE_CURRENT_LIST_DIR}/cmake/build_info.h.in
+  ${CMAKE_CURRENT_BINARY_DIR}/generated/build_info.h
+  @ONLY
+)
 
 set(LINKER_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/linker/STM32F446ZE_FLASH.ld)
 set(STARTUP_FILE ${CMAKE_CURRENT_LIST_DIR}/startup/startup_stm32f446xx.s)
@@ -77,6 +122,7 @@ add_custom_command(TARGET ${PROJECT_NAME}.elf POST_BUILD
 )
 target_include_directories(${PROJECT_NAME}.elf PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/include
+  ${CMAKE_CURRENT_BINARY_DIR}/generated
   ${CMAKE_CURRENT_LIST_DIR}/cmsis/CMSIS/Include
   ${CMAKE_CURRENT_LIST_DIR}/cmsis/CMSIS/Device/ST/STM32F4xx/Include
   ${CMAKE_CURRENT_LIST_DIR}/freertos

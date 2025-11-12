@@ -1,4 +1,5 @@
 #include "board.h"
+#include "build_info.h"
 #include "stm32f4xx.h"
 #include "FreeRTOS.h"
 #include "task.h"
@@ -16,6 +17,7 @@
 
 #if BOARD_UART_PORT == 1
 #define UART_INSTANCE USART1
+#define UART_LABEL "USART1"
 #define UART_GPIO GPIOA
 #define UART_TX_PIN_NUM 9U
 #define UART_RX_PIN_NUM 10U
@@ -24,6 +26,7 @@
 #define UART_APB2_ENR RCC_APB2ENR_USART1EN
 #elif BOARD_UART_PORT == 2
 #define UART_INSTANCE USART2
+#define UART_LABEL "USART2"
 #define UART_GPIO GPIOA
 #define UART_TX_PIN_NUM 2U
 #define UART_RX_PIN_NUM 3U
@@ -32,6 +35,7 @@
 #define UART_APB2_ENR 0U
 #elif BOARD_UART_PORT == 3
 #define UART_INSTANCE USART3
+#define UART_LABEL "USART3"
 #define UART_GPIO GPIOB
 #define UART_TX_PIN_NUM 10U
 #define UART_RX_PIN_NUM 11U
@@ -69,6 +73,21 @@ static void uart_write_char(char c)
   while ((UART_INSTANCE->SR & USART_SR_TXE) == 0) {
   }
   UART_INSTANCE->DR = (uint16_t)c;
+}
+
+const char *board_name(void)
+{
+  return BUILD_INFO_BOARD_NAME;
+}
+
+uint32_t board_uart_port_number(void)
+{
+  return (uint32_t)BOARD_UART_PORT;
+}
+
+const char *board_uart_port_label(void)
+{
+  return UART_LABEL;
 }
 
 void board_uart_write(const char *s)

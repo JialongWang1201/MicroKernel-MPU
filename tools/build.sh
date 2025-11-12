@@ -8,10 +8,12 @@ if [[ -n "${VM32_MEM_SIZE:-}" ]]; then
   cmake --fresh -S "${ROOT_DIR}" -B "${BUILD_DIR}" \
     -DCMAKE_TOOLCHAIN_FILE="${ROOT_DIR}/cmake/arm-none-eabi.cmake" \
     -DVM32_MEM_SIZE="${VM32_MEM_SIZE}" \
+    ${BUILD_PROFILE:+-DBUILD_PROFILE="${BUILD_PROFILE}"} \
     ${BOARD_UART_PORT:+-DBOARD_UART_PORT="${BOARD_UART_PORT}"}
 else
   cmake --fresh -S "${ROOT_DIR}" -B "${BUILD_DIR}" \
     -DCMAKE_TOOLCHAIN_FILE="${ROOT_DIR}/cmake/arm-none-eabi.cmake" \
+    ${BUILD_PROFILE:+-DBUILD_PROFILE="${BUILD_PROFILE}"} \
     ${BOARD_UART_PORT:+-DBOARD_UART_PORT="${BOARD_UART_PORT}"}
 fi
 cmake --build "${BUILD_DIR}" --parallel
