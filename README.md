@@ -290,7 +290,10 @@ tools/vm32 triage-bundle   --port /dev/cu.usbmodem21303
 
 ```bash
 ./tools/vm32_host_tests.sh
+./tools/build_identity_host_tests.sh
+./tools/ci_smoke.sh
 ./tools/mkdbg_host_tests.sh
+./tools/ovwatch_host_tests.sh
 ./tools/kdi_host_tests.sh
 ./tools/sonic_lite_host_tests.sh
 ./tools/bringup_host_tests.sh

@@ -280,6 +280,10 @@ Exit code conventions:
 Smoke tests:
 ```bash
 bash tools/vm32_ci.sh
+bash tools/ci_smoke.sh
+bash tools/build_identity_host_tests.sh
+bash tools/mkdbg_host_tests.sh
+bash tools/ovwatch_host_tests.sh
 bash tools/vm32_host_tests.sh
 tools/vm32 sonic-regress --port /dev/cu.usbmodem21303
 ```
