@@ -7,6 +7,12 @@ BIN_DIR="${TMP_DIR}/bin"
 BUILD_OUT="${TMP_DIR}/build.out"
 VERSION_OUT="${TMP_DIR}/version.out"
 DOCTOR_OUT="${TMP_DIR}/doctor.out"
+REPO_LIST_OUT="${TMP_DIR}/repo-list.out"
+TARGET_LIST_OUT="${TMP_DIR}/target-list.out"
+INCIDENT_OPEN_OUT="${TMP_DIR}/incident-open.out"
+INCIDENT_STATUS_OUT="${TMP_DIR}/incident-status.out"
+INCIDENT_STATUS_JSON_OUT="${TMP_DIR}/incident-status.json"
+INCIDENT_CLOSE_OUT="${TMP_DIR}/incident-close.out"
 CONFIG_PATH="${TMP_DIR}/.mkdbg.toml"
 
 cleanup() {
@@ -29,7 +35,7 @@ EOF
 chmod +x "${BIN_DIR}/openocd" "${BIN_DIR}/arm-none-eabi-gdb"
 
 pushd "${TMP_DIR}" >/dev/null
-mkdir -p build tools
+mkdir -p alt build tools
 : > build/MicroKernel_MPU.elf
 : > tools/openocd.cfg
 
@@ -87,6 +93,147 @@ checks = [
 for item in checks:
     if item not in text:
         raise SystemExit(f"missing expected native doctor output: {item}")
+PY
+
+PATH="${BIN_DIR}:${PATH}" "${ROOT_DIR}/build/mkdbg-native" repo add lab \
+  --path ./alt \
+  --preset generic \
+  --port /dev/ttyUSB1 \
+  --build-cmd make \
+  --snapshot-cmd python3 \
+  --default >/dev/null
+
+python3 - "${CONFIG_PATH}" <<'PY'
+import sys
+from pathlib import Path
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+checks = [
+    'default_repo = "lab"',
+    '[repos."lab"]',
+    'path = "/',
+    'port = "/dev/ttyUSB1"',
+    'build_cmd = "make"',
+    'preset = "generic"',
+]
+for item in checks:
+    if item not in text:
+        raise SystemExit(f"missing expected repo config line: {item}")
+PY
+
+PATH="${BIN_DIR}:${PATH}" "${ROOT_DIR}/build/mkdbg-native" repo list > "${REPO_LIST_OUT}"
+PATH="${BIN_DIR}:${PATH}" "${ROOT_DIR}/build/mkdbg-native" target list > "${TARGET_LIST_OUT}"
+python3 - "${REPO_LIST_OUT}" "${TARGET_LIST_OUT}" <<'PY'
+import sys
+from pathlib import Path
+
+repo_text = Path(sys.argv[1]).read_text(encoding="utf-8")
+target_text = Path(sys.argv[2]).read_text(encoding="utf-8")
+repo_checks = [
+    '  microkernel\tpreset=microkernel-mpu\tpath=',
+    '* lab\tpreset=generic\tpath=',
+]
+for item in repo_checks:
+    if item not in repo_text:
+        raise SystemExit(f"missing expected repo list output: {item}")
+if repo_text != target_text:
+    raise SystemExit("target list should match repo list output")
+PY
+
+PATH="${BIN_DIR}:${PATH}" "${ROOT_DIR}/build/mkdbg-native" target use microkernel >/dev/null
+python3 - "${CONFIG_PATH}" <<'PY'
+import sys
+from pathlib import Path
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+if 'default_repo = "microkernel"' not in text:
+    raise SystemExit("target use did not restore default repo")
+PY
+
+PATH="${BIN_DIR}:${PATH}" "${ROOT_DIR}/build/mkdbg-native" incident open \
+  --target microkernel \
+  --name "IRQ Timeout" \
+  --port /dev/ttyTEST0 > "${INCIDENT_OPEN_OUT}"
+PATH="${BIN_DIR}:${PATH}" "${ROOT_DIR}/build/mkdbg-native" incident status > "${INCIDENT_STATUS_OUT}"
+PATH="${BIN_DIR}:${PATH}" "${ROOT_DIR}/build/mkdbg-native" incident status --json > "${INCIDENT_STATUS_JSON_OUT}"
+
+python3 - "${INCIDENT_OPEN_OUT}" "${INCIDENT_STATUS_OUT}" "${INCIDENT_STATUS_JSON_OUT}" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+open_text = Path(sys.argv[1]).read_text(encoding="utf-8")
+status_text = Path(sys.argv[2]).read_text(encoding="utf-8")
+status_json = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))
+match = re.search(r"incident: ([^\n]+)", open_text)
+if match is None:
+    raise SystemExit("missing incident id in open output")
+incident_id = match.group(1)
+checks = [
+    f"incident: {incident_id}",
+    "status: open",
+    "repo: microkernel",
+    "port: /dev/ttyTEST0",
+]
+for item in checks:
+    if item not in status_text:
+        raise SystemExit(f"missing expected incident status output: {item}")
+if not status_json.get("ok") or not status_json.get("active"):
+    raise SystemExit(f"unexpected incident status json: {status_json}")
+if status_json.get("id") != incident_id:
+    raise SystemExit(f"incident id mismatch: {status_json}")
+if status_json.get("name") != "IRQ Timeout":
+    raise SystemExit(f"incident name mismatch: {status_json}")
+if status_json.get("status") != "open":
+    raise SystemExit(f"incident status mismatch: {status_json}")
+if status_json.get("repo") != "microkernel":
+    raise SystemExit(f"incident repo mismatch: {status_json}")
+if status_json.get("port") != "/dev/ttyTEST0":
+    raise SystemExit(f"incident port mismatch: {status_json}")
+PY
+
+PATH="${BIN_DIR}:${PATH}" "${ROOT_DIR}/build/mkdbg-native" incident close > "${INCIDENT_CLOSE_OUT}"
+python3 - "${INCIDENT_CLOSE_OUT}" "${INCIDENT_STATUS_JSON_OUT}" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+close_text = Path(sys.argv[1]).read_text(encoding="utf-8")
+status_json = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+match = re.search(r'closed incident: ([^\n]+)', close_text)
+if match is None:
+    raise SystemExit("missing incident id in close output")
+if match.group(1) != status_json["id"]:
+    raise SystemExit("incident close id mismatch")
+PY
+
+INCIDENT_ID="$(sed -n 's/^closed incident: //p' "${INCIDENT_CLOSE_OUT}")"
+INCIDENT_META_PATH="${TMP_DIR}/.mkdbg/incidents/${INCIDENT_ID}/incident.json"
+test ! -f "${TMP_DIR}/.mkdbg/incidents/current"
+test -f "${INCIDENT_META_PATH}"
+python3 - "${INCIDENT_META_PATH}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+meta = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+if meta.get("status") != "closed":
+    raise SystemExit(f"incident metadata not closed: {meta}")
+if "closed_at" not in meta:
+    raise SystemExit(f"incident metadata missing closed_at: {meta}")
+PY
+
+PATH="${BIN_DIR}:${PATH}" "${ROOT_DIR}/build/mkdbg-native" incident status --json > "${INCIDENT_STATUS_JSON_OUT}"
+python3 - "${INCIDENT_STATUS_JSON_OUT}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+if payload != {"ok": True, "active": False}:
+    raise SystemExit(f"expected inactive incident json, got: {payload}")
 PY
 
 popd >/dev/null
