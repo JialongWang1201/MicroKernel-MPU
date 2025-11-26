@@ -6,12 +6,15 @@ TARGET="${INSTALL_DIR}/mkdbg"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOCAL_NATIVE_SOURCE="${SCRIPT_DIR}/mkdbg_native.c"
 LOCAL_PYTHON_SOURCE="${SCRIPT_DIR}/mkdbg"
+NATIVE_BINARY_PATH="${MKDBG_INSTALL_BINARY_PATH:-}"
+NATIVE_BINARY_URL="${MKDBG_INSTALL_BINARY_URL:-}"
 REPO_SLUG="${MKDBG_REPO_SLUG:-JialongWang1201/MicroKernel-MPU}"
 REPO_REF="${MKDBG_REF:-main}"
 INSTALL_FLAVOR="${MKDBG_INSTALL_FLAVOR:-native}"
 CC_BIN="${CC:-cc}"
 REMOTE_NATIVE_URL="https://raw.githubusercontent.com/${REPO_SLUG}/${REPO_REF}/tools/mkdbg_native.c"
 REMOTE_PYTHON_URL="https://raw.githubusercontent.com/${REPO_SLUG}/${REPO_REF}/tools/mkdbg"
+INSTALL_MODE="${INSTALL_FLAVOR}"
 
 compile_native() {
   local source_path="$1"
@@ -28,31 +31,60 @@ compile_native() {
   mv "${tmp_target}" "${TARGET}"
 }
 
+require_curl() {
+  if ! command -v curl >/dev/null 2>&1; then
+    echo "error: curl is required when installing without a local checkout" >&2
+    exit 2
+  fi
+}
+
+install_native_binary_path() {
+  local binary_path="$1"
+
+  if [[ ! -f "${binary_path}" ]]; then
+    echo "error: native binary override not found: ${binary_path}" >&2
+    exit 2
+  fi
+
+  cp "${binary_path}" "${TARGET}"
+}
+
+install_native_binary_url() {
+  local binary_url="$1"
+  local tmp_target="${TARGET}.tmp"
+
+  require_curl
+  curl -fsSL "${binary_url}" -o "${tmp_target}"
+  mv "${tmp_target}" "${TARGET}"
+}
+
 mkdir -p "${INSTALL_DIR}"
 
 case "${INSTALL_FLAVOR}" in
   native)
-    if [[ -f "${LOCAL_NATIVE_SOURCE}" ]]; then
+    if [[ -n "${NATIVE_BINARY_PATH}" ]]; then
+      install_native_binary_path "${NATIVE_BINARY_PATH}"
+      INSTALL_MODE="native-binary"
+    elif [[ -n "${NATIVE_BINARY_URL}" ]]; then
+      install_native_binary_url "${NATIVE_BINARY_URL}"
+      INSTALL_MODE="native-binary"
+    elif [[ -f "${LOCAL_NATIVE_SOURCE}" ]]; then
       compile_native "${LOCAL_NATIVE_SOURCE}"
+      INSTALL_MODE="native-source"
     else
-      if ! command -v curl >/dev/null 2>&1; then
-        echo "error: curl is required when installing without a local checkout" >&2
-        exit 2
-      fi
+      require_curl
       TMP_DIR="$(mktemp -d)"
       trap 'rm -rf "${TMP_DIR}"' EXIT
       curl -fsSL "${REMOTE_NATIVE_URL}" -o "${TMP_DIR}/mkdbg_native.c"
       compile_native "${TMP_DIR}/mkdbg_native.c"
+      INSTALL_MODE="native-source"
     fi
     ;;
   python)
     if [[ -f "${LOCAL_PYTHON_SOURCE}" ]]; then
       cp "${LOCAL_PYTHON_SOURCE}" "${TARGET}"
     else
-      if ! command -v curl >/dev/null 2>&1; then
-        echo "error: curl is required when installing without a local checkout" >&2
-        exit 2
-      fi
+      require_curl
       curl -fsSL "${REMOTE_PYTHON_URL}" -o "${TARGET}"
     fi
     ;;
@@ -64,7 +96,7 @@ esac
 
 chmod +x "${TARGET}"
 
-echo "installed mkdbg (${INSTALL_FLAVOR}) -> ${TARGET}"
+echo "installed mkdbg (${INSTALL_MODE}) -> ${TARGET}"
 case ":${PATH}:" in
   *:"${INSTALL_DIR}":*)
     ;;

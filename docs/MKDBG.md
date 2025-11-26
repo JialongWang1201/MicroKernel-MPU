@@ -31,7 +31,8 @@ curl -fsSL https://raw.githubusercontent.com/JialongWang1201/MicroKernel-MPU/mai
 ```
 
 The remote installer currently builds the native frontend from source and
-requires `curl` and `cc`.
+requires `curl` and `cc`. If `MKDBG_INSTALL_BINARY_URL` is set, it downloads a
+prebuilt native binary instead.
 
 ## Quick Start
 
