@@ -30,6 +30,12 @@ BUILD_ACTION_OUT="${TMP_DIR}/build-action.out"
 FLASH_ACTION_OUT="${TMP_DIR}/flash-action.out"
 HIL_ACTION_OUT="${TMP_DIR}/hil-action.out"
 SNAPSHOT_ACTION_OUT="${TMP_DIR}/snapshot-action.out"
+GIT_STATUS_OUT="${TMP_DIR}/git-status.out"
+GIT_REV_OUT="${TMP_DIR}/git-rev.out"
+GIT_NEWBRANCH_OUT="${TMP_DIR}/git-newbranch.out"
+GIT_WORKTREE_OUT="${TMP_DIR}/git-worktree.out"
+GIT_PUSH_OUT="${TMP_DIR}/git-push.out"
+GIT_ERR_OUT="${TMP_DIR}/git.err"
 CONFIG_PATH="${TMP_DIR}/.mkdbg.toml"
 
 cleanup() {
@@ -560,6 +566,71 @@ for item in checks:
     if item not in text:
         raise SystemExit(f"missing expected snapshot action output: {item}")
 PY
+
+PATH="${BIN_DIR}:${PATH}" "${ROOT_DIR}/build/mkdbg-native" git status --dry-run > "${GIT_STATUS_OUT}"
+python3 - "${GIT_STATUS_OUT}" <<'PY'
+import sys
+from pathlib import Path
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+checks = ["[mkdbg] cwd=", "[mkdbg] cmd=git status"]
+for item in checks:
+    if item not in text:
+        raise SystemExit(f"missing expected git status output: {item}")
+PY
+
+PATH="${BIN_DIR}:${PATH}" "${ROOT_DIR}/build/mkdbg-native" git rev --dry-run > "${GIT_REV_OUT}"
+python3 - "${GIT_REV_OUT}" <<'PY'
+import sys
+from pathlib import Path
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+checks = ["[mkdbg] cmd=git rev-parse HEAD"]
+for item in checks:
+    if item not in text:
+        raise SystemExit(f"missing expected git rev output: {item}")
+PY
+
+PATH="${BIN_DIR}:${PATH}" "${ROOT_DIR}/build/mkdbg-native" git new-branch --dry-run feature/test-branch > "${GIT_NEWBRANCH_OUT}"
+python3 - "${GIT_NEWBRANCH_OUT}" <<'PY'
+import sys
+from pathlib import Path
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+checks = ["[mkdbg] cmd=git checkout -b feature/test-branch"]
+for item in checks:
+    if item not in text:
+        raise SystemExit(f"missing expected git new-branch output: {item}")
+PY
+
+PATH="${BIN_DIR}:${PATH}" "${ROOT_DIR}/build/mkdbg-native" git worktree --dry-run /tmp/wt-test > "${GIT_WORKTREE_OUT}"
+python3 - "${GIT_WORKTREE_OUT}" <<'PY'
+import sys
+from pathlib import Path
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+checks = ["[mkdbg] cmd=git worktree add /tmp/wt-test"]
+for item in checks:
+    if item not in text:
+        raise SystemExit(f"missing expected git worktree output: {item}")
+PY
+
+PATH="${BIN_DIR}:${PATH}" "${ROOT_DIR}/build/mkdbg-native" git push-current --dry-run > "${GIT_PUSH_OUT}"
+python3 - "${GIT_PUSH_OUT}" <<'PY'
+import sys
+from pathlib import Path
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+checks = ["[mkdbg] cmd=git push -u origin HEAD"]
+for item in checks:
+    if item not in text:
+        raise SystemExit(f"missing expected git push-current output: {item}")
+PY
+
+if PATH="${BIN_DIR}:${PATH}" "${ROOT_DIR}/build/mkdbg-native" git 2>"${GIT_ERR_OUT}"; then
+  echo "git with no subcommand should fail" >&2; exit 1
+fi
+grep -q "git requires a subcommand" "${GIT_ERR_OUT}"
 
 popd >/dev/null
 echo "mkdbg_native_host_tests: OK"
