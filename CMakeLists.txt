@@ -4,6 +4,20 @@ project(MicroKernel_MPU C ASM)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+add_executable(mkdbg_native_host
+  tools/mkdbg_native.c
+)
+set_target_properties(mkdbg_native_host PROPERTIES
+  OUTPUT_NAME mkdbg-native
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+)
+target_compile_options(mkdbg_native_host PRIVATE
+  -Wall
+  -Wextra
+  -Werror
+  -O2
+)
+
 set(VM32_MEM_SIZE "4096" CACHE STRING "VM32 memory size in bytes (256/1024/4096)")
 set(BOARD_UART_PORT "2" CACHE STRING "UART port for VCP (1/2/3)")
 set(BUILD_PROFILE "default" CACHE STRING "Build profile label embedded in firmware identity")

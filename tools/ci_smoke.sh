@@ -7,6 +7,7 @@ HEADER_PATH="${BUILD_DIR}/generated/build_info.h"
 
 bash "${ROOT_DIR}/tools/build_identity_host_tests.sh"
 bash "${ROOT_DIR}/tools/build_mkdbg_native_host_tests.sh"
+bash "${ROOT_DIR}/tools/mkdbg_native_cmake_host_tests.sh"
 bash "${ROOT_DIR}/tools/mkdbg_host_tests.sh"
 bash "${ROOT_DIR}/tools/mkdbg_native_host_tests.sh"
 bash "${ROOT_DIR}/tools/install_mkdbg_host_tests.sh"
