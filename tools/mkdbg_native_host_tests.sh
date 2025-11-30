@@ -30,6 +30,9 @@ BUILD_ACTION_OUT="${TMP_DIR}/build-action.out"
 FLASH_ACTION_OUT="${TMP_DIR}/flash-action.out"
 HIL_ACTION_OUT="${TMP_DIR}/hil-action.out"
 SNAPSHOT_ACTION_OUT="${TMP_DIR}/snapshot-action.out"
+SERIAL_TAIL_OUT="${TMP_DIR}/serial-tail.out"
+SERIAL_SEND_OUT="${TMP_DIR}/serial-send.out"
+SERIAL_ERR_OUT="${TMP_DIR}/serial.err"
 GIT_STATUS_OUT="${TMP_DIR}/git-status.out"
 GIT_REV_OUT="${TMP_DIR}/git-rev.out"
 GIT_NEWBRANCH_OUT="${TMP_DIR}/git-newbranch.out"
@@ -631,6 +634,49 @@ if PATH="${BIN_DIR}:${PATH}" "${ROOT_DIR}/build/mkdbg-native" git 2>"${GIT_ERR_O
   echo "git with no subcommand should fail" >&2; exit 1
 fi
 grep -q "git requires a subcommand" "${GIT_ERR_OUT}"
+
+PATH="${BIN_DIR}:${PATH}" "${ROOT_DIR}/build/mkdbg-native" serial tail --port /dev/ttyUSB0 --baud 9600 --dry-run > "${SERIAL_TAIL_OUT}"
+python3 - "${SERIAL_TAIL_OUT}" <<'PY'
+import sys
+from pathlib import Path
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+checks = [
+    "[mkdbg] serial tail port=/dev/ttyUSB0 baud=9600",
+]
+for item in checks:
+    if item not in text:
+        raise SystemExit(f"missing expected serial tail output: {item}")
+PY
+
+PATH="${BIN_DIR}:${PATH}" "${ROOT_DIR}/build/mkdbg-native" serial send --port /dev/ttyUSB0 --baud 115200 --dry-run "hello board" > "${SERIAL_SEND_OUT}"
+python3 - "${SERIAL_SEND_OUT}" <<'PY'
+import sys
+from pathlib import Path
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+checks = [
+    "[mkdbg] serial send port=/dev/ttyUSB0 baud=115200 len=11",
+]
+for item in checks:
+    if item not in text:
+        raise SystemExit(f"missing expected serial send output: {item}")
+PY
+
+if PATH="${BIN_DIR}:${PATH}" "${ROOT_DIR}/build/mkdbg-native" serial 2>"${SERIAL_ERR_OUT}"; then
+  echo "serial with no subcommand should fail" >&2; exit 1
+fi
+grep -q "serial requires a subcommand" "${SERIAL_ERR_OUT}"
+
+PATH="${BIN_DIR}:${PATH}" "${ROOT_DIR}/build/mkdbg-native" serial tail --dry-run > "${SERIAL_TAIL_OUT}"
+python3 - "${SERIAL_TAIL_OUT}" <<'PY'
+import sys
+from pathlib import Path
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+if "[mkdbg] serial tail port=/dev/ttyACM0 baud=115200" not in text:
+    raise SystemExit(f"serial tail should resolve port from config, got: {text}")
+PY
 
 popd >/dev/null
 echo "mkdbg_native_host_tests: OK"

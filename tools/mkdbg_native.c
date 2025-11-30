@@ -1,4 +1,9 @@
 #define _POSIX_C_SOURCE 200809L
+#ifdef __APPLE__
+#define _DARWIN_C_SOURCE
+#else
+#define _DEFAULT_SOURCE
+#endif
 
 #include <ctype.h>
 #include <errno.h>
@@ -12,6 +17,8 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <time.h>
+#include <fcntl.h>
+#include <termios.h>
 #include <unistd.h>
 
 #ifndef PATH_MAX
@@ -30,6 +37,8 @@
 #define MAX_ATTACH_BREAKPOINTS 16
 #define MAX_ATTACH_COMMANDS 16
 #define MAX_U32_TEXT 16
+#define SERIAL_BUF_SIZE 256
+#define DEFAULT_BAUD 115200
 
 typedef struct {
   char name[MAX_NAME];
@@ -171,6 +180,16 @@ typedef struct {
   const char *path;
   int dry_run;
 } GitOptions;
+
+typedef struct {
+  const char *repo;
+  const char *target;
+  const char *port;
+  int baud;
+  double char_delay_ms;
+  const char *message;
+  int dry_run;
+} SerialOptions;
 
 typedef struct {
   char id[MAX_NAME];
@@ -1072,7 +1091,7 @@ static int command_available(const char *command)
 static void usage(void)
 {
   printf("mkdbg-native %s\n", MKDBG_NATIVE_VERSION);
-  printf("usage: mkdbg-native [--version] <init|doctor|repo|target|incident|build|flash|hil|snapshot|watch|attach|probe|git|run|capture> [options]\n");
+  printf("usage: mkdbg-native [--version] <init|doctor|repo|target|incident|build|flash|hil|snapshot|watch|attach|probe|serial|git|run|capture> [options]\n");
 }
 
 static void init_default_repo_name(char *out, size_t out_size)
@@ -1997,6 +2016,183 @@ static int cmd_git_push_current(const GitOptions *opts)
   return run_process(argv, repo_root, opts->dry_run);
 }
 
+static speed_t baud_to_speed(int baud)
+{
+  switch (baud) {
+  case 9600:   return B9600;
+  case 19200:  return B19200;
+  case 38400:  return B38400;
+  case 57600:  return B57600;
+  case 115200: return B115200;
+  case 230400: return B230400;
+  default:     return B0;
+  }
+}
+
+static const char *resolve_serial_port(const char *config_path,
+                                       const MkdbgConfig *config,
+                                       const SerialOptions *opts)
+{
+  const char *port = opts->port;
+  if (port != NULL && port[0] != '\0') {
+    return port;
+  }
+  {
+    const char *repo_name;
+    const RepoConfig *repo;
+    resolve_repo_name(config, opts->repo, opts->target, &repo_name);
+    repo = find_repo_const(config, repo_name);
+    if (repo != NULL && repo->port[0] != '\0') {
+      return repo->port;
+    }
+  }
+  (void)config_path;
+  die("serial command requires a port; pass --port or set port in config");
+  return NULL;
+}
+
+static int cmd_serial_tail(const SerialOptions *opts)
+{
+  char config_path[PATH_MAX];
+  MkdbgConfig config;
+  const char *port;
+  int baud;
+  speed_t speed;
+  int fd;
+  struct termios tty;
+  unsigned char buf[SERIAL_BUF_SIZE];
+  ssize_t n;
+
+  if (find_config_upward(config_path, sizeof(config_path)) != 0) {
+    die("missing %s; run `mkdbg init` first", CONFIG_NAME);
+  }
+  if (load_config_file(config_path, &config) != 0) {
+    die("invalid config: %s", config_path);
+  }
+
+  port = resolve_serial_port(config_path, &config, opts);
+  baud = opts->baud > 0 ? opts->baud : DEFAULT_BAUD;
+  speed = baud_to_speed(baud);
+  if (speed == B0) {
+    die("unsupported baud rate: %d", baud);
+  }
+
+  printf("[mkdbg] serial tail port=%s baud=%d\n", port, baud);
+  if (opts->dry_run) {
+    return 0;
+  }
+
+  fd = open(port, O_RDONLY | O_NOCTTY);
+  if (fd < 0) {
+    die("cannot open serial port %s: %s", port, strerror(errno));
+  }
+
+  memset(&tty, 0, sizeof(tty));
+  if (tcgetattr(fd, &tty) != 0) {
+    close(fd);
+    die("tcgetattr failed: %s", strerror(errno));
+  }
+  cfmakeraw(&tty);
+  cfsetispeed(&tty, speed);
+  cfsetospeed(&tty, speed);
+  tty.c_cflag |= (CLOCAL | CREAD);
+  tty.c_cc[VMIN] = 1;
+  tty.c_cc[VTIME] = 0;
+  if (tcsetattr(fd, TCSANOW, &tty) != 0) {
+    close(fd);
+    die("tcsetattr failed: %s", strerror(errno));
+  }
+
+  while ((n = read(fd, buf, sizeof(buf))) > 0) {
+    if (write(STDOUT_FILENO, buf, (size_t)n) < 0) {
+      break;
+    }
+  }
+
+  close(fd);
+  return 0;
+}
+
+static int cmd_serial_send(const SerialOptions *opts)
+{
+  char config_path[PATH_MAX];
+  MkdbgConfig config;
+  const char *port;
+  int baud;
+  speed_t speed;
+  int fd;
+  struct termios tty;
+  const char *msg;
+  size_t len;
+  size_t i;
+
+  if (opts->message == NULL || opts->message[0] == '\0') {
+    die("serial send requires a message");
+  }
+
+  if (find_config_upward(config_path, sizeof(config_path)) != 0) {
+    die("missing %s; run `mkdbg init` first", CONFIG_NAME);
+  }
+  if (load_config_file(config_path, &config) != 0) {
+    die("invalid config: %s", config_path);
+  }
+
+  port = resolve_serial_port(config_path, &config, opts);
+  baud = opts->baud > 0 ? opts->baud : DEFAULT_BAUD;
+  speed = baud_to_speed(baud);
+  if (speed == B0) {
+    die("unsupported baud rate: %d", baud);
+  }
+
+  msg = opts->message;
+  len = strlen(msg);
+
+  printf("[mkdbg] serial send port=%s baud=%d len=%zu\n", port, baud, len);
+  if (opts->dry_run) {
+    return 0;
+  }
+
+  fd = open(port, O_WRONLY | O_NOCTTY);
+  if (fd < 0) {
+    die("cannot open serial port %s: %s", port, strerror(errno));
+  }
+
+  memset(&tty, 0, sizeof(tty));
+  if (tcgetattr(fd, &tty) != 0) {
+    close(fd);
+    die("tcgetattr failed: %s", strerror(errno));
+  }
+  cfmakeraw(&tty);
+  cfsetispeed(&tty, speed);
+  cfsetospeed(&tty, speed);
+  tty.c_cflag |= (CLOCAL | CREAD);
+  tty.c_cc[VMIN] = 0;
+  tty.c_cc[VTIME] = 10;
+  if (tcsetattr(fd, TCSANOW, &tty) != 0) {
+    close(fd);
+    die("tcsetattr failed: %s", strerror(errno));
+  }
+
+  if (opts->char_delay_ms > 0.0) {
+    for (i = 0; i < len; ++i) {
+      if (write(fd, &msg[i], 1) != 1) {
+        close(fd);
+        die("serial write failed: %s", strerror(errno));
+      }
+      usleep((useconds_t)(opts->char_delay_ms * 1000.0));
+    }
+  } else {
+    if (write(fd, msg, len) != (ssize_t)len) {
+      close(fd);
+      die("serial write failed: %s", strerror(errno));
+    }
+  }
+
+  close(fd);
+  printf("[mkdbg] sent %zu bytes\n", len);
+  return 0;
+}
+
 static void build_action_context(const char *config_path,
                                  const char *repo_name,
                                  const RepoConfig *repo,
@@ -2540,6 +2736,44 @@ static int parse_git_args(int argc, char **argv, GitOptions *opts)
   return 0;
 }
 
+static int parse_serial_args(int argc, char **argv, SerialOptions *opts)
+{
+  int i;
+  memset(opts, 0, sizeof(*opts));
+  for (i = 0; i < argc; ++i) {
+    if (strcmp(argv[i], "--target") == 0) {
+      if (i + 1 >= argc) {
+        die("missing value for --target");
+      }
+      opts->target = argv[++i];
+    } else if (strcmp(argv[i], "--port") == 0) {
+      if (i + 1 >= argc) {
+        die("missing value for --port");
+      }
+      opts->port = argv[++i];
+    } else if (strcmp(argv[i], "--baud") == 0) {
+      if (i + 1 >= argc) {
+        die("missing value for --baud");
+      }
+      opts->baud = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "--char-delay-ms") == 0) {
+      if (i + 1 >= argc) {
+        die("missing value for --char-delay-ms");
+      }
+      opts->char_delay_ms = atof(argv[++i]);
+    } else if (strcmp(argv[i], "--dry-run") == 0) {
+      opts->dry_run = 1;
+    } else if (argv[i][0] == '-') {
+      die("unknown serial argument: %s", argv[i]);
+    } else if (opts->repo == NULL) {
+      opts->repo = argv[i];
+    } else {
+      die("serial accepts at most one repo name");
+    }
+  }
+  return 0;
+}
+
 int main(int argc, char **argv)
 {
   if (argc == 2 && strcmp(argv[1], "--version") == 0) {
@@ -2694,6 +2928,26 @@ int main(int argc, char **argv)
       return cmd_probe_write32(&opts);
     }
     die("unknown probe subcommand: %s", argv[2]);
+  }
+
+  if (strcmp(argv[1], "serial") == 0) {
+    SerialOptions opts;
+    if (argc < 3) {
+      die("serial requires a subcommand: tail, send");
+    }
+    if (strcmp(argv[2], "tail") == 0) {
+      parse_serial_args(argc - 3, argv + 3, &opts);
+      return cmd_serial_tail(&opts);
+    }
+    if (strcmp(argv[2], "send") == 0) {
+      if (argc < 4) {
+        die("serial send requires a message argument");
+      }
+      parse_serial_args(argc - 4, argv + 3, &opts);
+      opts.message = argv[argc - 1];
+      return cmd_serial_send(&opts);
+    }
+    die("unknown serial subcommand: %s", argv[2]);
   }
 
   if (strcmp(argv[1], "git") == 0) {
