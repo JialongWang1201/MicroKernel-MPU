@@ -6,6 +6,11 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 
 add_executable(mkdbg_native_host
   tools/mkdbg_native.c
+  tools/mkdbg_util.c
+  tools/mkdbg_process.c
+  tools/mkdbg_config.c
+  tools/mkdbg_incident.c
+  tools/mkdbg_parse.c
 )
 set_target_properties(mkdbg_native_host PROPERTIES
   OUTPUT_NAME mkdbg-native
