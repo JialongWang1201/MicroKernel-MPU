@@ -327,4 +327,12 @@ void format_action_command(const char *template,
 int cmd_run(const RunOptions *opts);
 int cmd_configured_action(const ActionOptions *opts, const char *field, int needs_port);
 
+/* ---- serial.c ---- */
+speed_t baud_to_speed(int baud);
+const char *resolve_serial_port(const char *config_path,
+                                const MkdbgConfig *config,
+                                const SerialOptions *opts);
+int cmd_serial_tail(const SerialOptions *opts);
+int cmd_serial_send(const SerialOptions *opts);
+
 #endif /* MKDBG_H */
