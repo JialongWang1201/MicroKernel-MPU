@@ -26,8 +26,8 @@
 /* Maximum raw bytes we accept from a UART capture (4 MiB is generous) */
 #define SEAM_MAX_RAW (4u * 1024u * 1024u)
 
-/* Maximum decoded bundle size — one bundle can't exceed 255 records × 20 B
- * + 12 B header = 5112 B; add a small pad for safety */
+/* Maximum decoded bundle size — one bundle can't exceed 255 records × 24 B
+ * + 12 B header = 6132 B; add a small pad for safety */
 #define SEAM_MAX_BUNDLE 8192u
 
 /* ── Read entire file into a heap buffer ─────────────────────────────────── */

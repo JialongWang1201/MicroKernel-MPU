@@ -276,6 +276,8 @@ static void kdi_driver_set_state(KdiDriverId driver, KdiDriverState next_state)
   }
   kdi_driver_state[driver] = next_state;
   kdi_profile_state_visit_record(driver, next_state);
+  seam_emit(CFL_LAYER_KDI, CFL_EV_KDI_STATE,
+            (uint32_t)driver, (uint32_t)prev_state, (uint32_t)next_state, 0);
 }
 
 static int kdi_state_allows_request(KdiDriverId driver)
@@ -353,6 +355,8 @@ static int kdi_expire_if_needed(KdiDriverId driver)
   kdi_token_active[driver] = 0U;
   kdi_tokens[driver] = KDI_CAP_INVALID;
   kdi_stats.token_expire_total++;
+  seam_emit(CFL_LAYER_KDI, CFL_EV_KDI_TOKEN_EXP,
+            (uint32_t)driver, elapsed, 0, 0);
   return 1;
 }
 
