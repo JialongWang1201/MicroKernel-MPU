@@ -4,6 +4,17 @@ project(MicroKernel_MPU C ASM)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+# ── seam_lib: shared host-side analysis sources ──────────────────────────────
+add_library(seam_lib OBJECT
+  tools/seam/src/seam_analyze.c
+  tools/seam/src/seam_rules.c
+  tools/seam/src/seam_print.c
+)
+target_include_directories(seam_lib PUBLIC
+  ${CMAKE_CURRENT_LIST_DIR}/tools/seam/include
+)
+target_compile_options(seam_lib PRIVATE -Wall -Wextra -O2)
+
 add_executable(mkdbg_native_host
   tools/mkdbg_native.c
   tools/mkdbg_util.c
@@ -17,6 +28,8 @@ add_executable(mkdbg_native_host
   tools/mkdbg_probe.c
   tools/mkdbg_action.c
   tools/mkdbg_serial.c
+  tools/mkdbg_seam.c
+  $<TARGET_OBJECTS:seam_lib>
 )
 set_target_properties(mkdbg_native_host PROPERTIES
   OUTPUT_NAME mkdbg-native
@@ -28,13 +41,15 @@ target_compile_options(mkdbg_native_host PRIVATE
   -Werror
   -O2
 )
+target_include_directories(mkdbg_native_host PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/tools/seam/include
+)
 
-# ── seam-analyze: host-side causal fault analysis tool ───────────────────────
+# ── seam-analyze: standalone thin shim over mkdbg_cmd_seam ───────────────────
 add_executable(seam_analyze_host
+  tools/seam_main.c
   tools/mkdbg_seam.c
-  tools/seam/src/seam_analyze.c
-  tools/seam/src/seam_rules.c
-  tools/seam/src/seam_print.c
+  $<TARGET_OBJECTS:seam_lib>
 )
 set_target_properties(seam_analyze_host PROPERTIES
   OUTPUT_NAME seam-analyze
@@ -48,6 +63,17 @@ target_compile_options(seam_analyze_host PRIVATE
 )
 target_include_directories(seam_analyze_host PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/tools/seam/include
+)
+
+# ── seam-analyze CI ctest ─────────────────────────────────────────────────────
+enable_testing()
+add_test(
+  NAME seam_analyze_kdi_cascade
+  COMMAND $<TARGET_FILE:seam_analyze_host>
+          ${CMAKE_CURRENT_SOURCE_DIR}/tools/seam/test/fixtures/normal_kdi_cascade.cfl
+)
+set_tests_properties(seam_analyze_kdi_cascade PROPERTIES
+  PASS_REGULAR_EXPRESSION "VERDICT:"
 )
 
 set(VM32_MEM_SIZE "4096" CACHE STRING "VM32 memory size in bytes (256/1024/4096)")
