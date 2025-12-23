@@ -7,6 +7,17 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 # ── Host-only targets (skipped when cross-compiling for ARM) ─────────────────
 if(NOT CMAKE_CROSSCOMPILING)
 
+# ── wire: GDB RSP stub (host proxy) ──────────────────────────────────────────
+add_executable(wire_host
+  tools/wire/host/wire_host.c
+  tools/wire/host/wire_serial.c
+)
+target_compile_options(wire_host PRIVATE -Wall -Wextra -Werror -O2)
+set_target_properties(wire_host PROPERTIES
+  OUTPUT_NAME "wire-host"
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+)
+
 # ── seam_lib: shared host-side analysis sources ──────────────────────────────
 add_library(seam_lib OBJECT
   tools/seam/src/seam_analyze.c
@@ -81,6 +92,17 @@ set_tests_properties(seam_analyze_kdi_cascade PROPERTIES
 
 endif() # NOT CMAKE_CROSSCOMPILING
 
+# ── wire_firmware: GDB RSP stub (cross-compiled for ARM) ─────────────────────
+add_library(wire_firmware OBJECT
+  tools/wire/src/wire_rsp.c
+  tools/wire/src/wire_regs_cm.c
+  tools/wire/src/wire_exception.c
+)
+target_include_directories(wire_firmware PUBLIC
+  ${CMAKE_CURRENT_LIST_DIR}/tools/wire/include
+)
+target_compile_options(wire_firmware PRIVATE -Wall -Wextra -O2)
+
 set(VM32_MEM_SIZE "4096" CACHE STRING "VM32 memory size in bytes (256/1024/4096)")
 set(BOARD_UART_PORT "2" CACHE STRING "UART port for VCP (1/2/3)")
 set(BUILD_PROFILE "default" CACHE STRING "Build profile label embedded in firmware identity")
@@ -150,6 +172,7 @@ add_executable(${PROJECT_NAME}.elf
   bsp/mpu_demo.c
   bsp/system_stm32f4xx.c
   bsp/seam_port.c
+  bsp/wire_port.c
   freertos/Source/list.c
   freertos/Source/queue.c
   freertos/Source/tasks.c
@@ -162,6 +185,7 @@ add_executable(${PROJECT_NAME}.elf
   freertos/Source/portable/GCC/ARM_CM4_MPU/mpu_wrappers_v2_asm.c
   freertos/Source/portable/MemMang/heap_4.c
   ${STARTUP_FILE}
+  $<TARGET_OBJECTS:wire_firmware>
 )
 
 target_compile_definitions(${PROJECT_NAME}.elf PRIVATE
@@ -208,4 +232,5 @@ target_include_directories(${PROJECT_NAME}.elf PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/freertos/Source/include
   ${CMAKE_CURRENT_LIST_DIR}/freertos/Source/portable/GCC/ARM_CM4_MPU
   ${CMAKE_CURRENT_LIST_DIR}/tools/seam/include
+  ${CMAKE_CURRENT_LIST_DIR}/tools/wire/include
 )

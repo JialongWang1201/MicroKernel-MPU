@@ -25,6 +25,9 @@
 /* seam BSP port — defined in bsp/seam_port.c */
 extern void seam_port_init(void);
 
+/* wire GDB RSP stub — defined in tools/wire/src/wire_rsp.c + bsp/wire_port.c */
+#include "wire.h"
+
 #define LOG_QUEUE_LEN 8
 #define USER_STACK_WORDS 512
 #define CLI_STACK_WORDS 1024
@@ -6525,6 +6528,7 @@ int main(void)
   board_gpio_init();
   board_uart_init();
   seam_port_init();   /* enable DWT cycle counter for seam timestamps */
+  wire_init(0x20000000U, 0x20000000U + 128U * 1024U);  /* install fault handlers; RAM: SRAM1 128 KB */
   board_adc_init();
   enable_fpu();
   board_uart_write(BUILD_INFO_FIRMWARE_NAME " boot\r\n");
