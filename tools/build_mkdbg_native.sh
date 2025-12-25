@@ -73,3 +73,14 @@ fi
 
 echo "built ${OUT}"
 echo "built ${OUT_ARTIFACT}"
+
+# ── wire-host: build alongside mkdbg if the submodule is present ─────────────
+WIRE_DIR="${ROOT_DIR}/tools/wire"
+WIRE_OUT="${BUILD_DIR}/wire-host"
+if [[ -f "${WIRE_DIR}/host/wire_host.c" ]]; then
+  cc -std=c99 -Wall -Wextra -Werror -O2 \
+    -o "${WIRE_OUT}" \
+    "${WIRE_DIR}/host/wire_host.c" \
+    "${WIRE_DIR}/host/wire_serial.c"
+  echo "built ${WIRE_OUT}"
+fi
