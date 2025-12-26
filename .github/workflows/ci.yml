@@ -38,6 +38,7 @@ jobs:
           if-no-files-found: error
           path: |
             build/mkdbg-native-${{ matrix.host_os }}-${{ matrix.host_arch }}
+            build/wire-host
 
   build:
     runs-on: ubuntu-latest

@@ -140,6 +140,15 @@ esac
 
 chmod +x "${TARGET}"
 
+# ── wire-host: install alongside mkdbg when built from a local checkout ──────
+WIRE_HOST_BUILD="${SCRIPT_DIR}/../build/wire-host"
+WIRE_HOST_TARGET="${INSTALL_DIR}/wire-host"
+if [[ -f "${WIRE_HOST_BUILD}" ]]; then
+  cp "${WIRE_HOST_BUILD}" "${WIRE_HOST_TARGET}"
+  chmod +x "${WIRE_HOST_TARGET}"
+  echo "installed wire-host -> ${WIRE_HOST_TARGET}"
+fi
+
 echo "installed mkdbg (${INSTALL_MODE}) -> ${TARGET}"
 case ":${PATH}:" in
   *:"${INSTALL_DIR}":*)
