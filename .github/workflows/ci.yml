@@ -7,6 +7,7 @@ on:
     branches: ["main"]
 
 jobs:
+  # ── CMake host build: mkdbg-native (with libgit2) + wire-host ────────────
   native-host-artifacts:
     strategy:
       fail-fast: false
@@ -24,12 +25,24 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Build native mkdbg host binary
+      - name: Build mkdbg-native and wire-host (CMake, with libgit2)
         run: |
           set -euxo pipefail
-          MKDBG_NATIVE_HOST_OS="${{ matrix.host_os }}" \
-          MKDBG_NATIVE_HOST_ARCH="${{ matrix.host_arch }}" \
-          bash tools/build_mkdbg_native.sh
+          cmake -S . -B build_host \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DMKDBG_NATIVE_HOST_OS="${{ matrix.host_os }}" \
+            -DMKDBG_NATIVE_HOST_ARCH="${{ matrix.host_arch }}"
+          cmake --build build_host \
+            --target mkdbg_native_host wire_host -- -j3
+          mkdir -p build
+          cp build_host/mkdbg-native \
+             "build/mkdbg-native-${{ matrix.host_os }}-${{ matrix.host_arch }}"
+          cp build_host/wire-host build/wire-host
+
+      - name: Smoke test binaries
+        run: |
+          "build/mkdbg-native-${{ matrix.host_os }}-${{ matrix.host_arch }}" --version
+          build/wire-host --version
 
       - name: Upload Native Host Artifact
         uses: actions/upload-artifact@v4
