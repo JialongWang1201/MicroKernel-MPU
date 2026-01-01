@@ -27,7 +27,7 @@ CLI.
 - snapshot and event-slice RCA with evidence IDs and replayable host artifacts
 - VM32 runtime with bounded execution and policy control
 - **seam** causal fault analysis: on-device event ring emitted over UART as a COBS-framed `.cfl` bundle; `mkdbg seam analyze` reconstructs the causal chain from the binary dump
-- **wire** live GDB debugging over UART: on crash the firmware halts and waits for `arm-none-eabi-gdb` — no JTAG, no OpenOCD, no Python
+- **wire** crash diagnostics over UART: on crash the firmware halts and exposes state over UART — `mkdbg attach --port` reads registers, CFSR, and a heuristic backtrace in under a second with no GDB, no JTAG, no OpenOCD; `wire-host` also bridges to GDB for full interactive sessions
 - host tooling for `mkdbg`, terminal dashboard, triage bundles, and HIL gates
 
 ## Support Repos
@@ -46,14 +46,14 @@ Two focused C99 libraries ship as git submodules at `tools/`:
            │  .cfl bundle     │  raw RSP over UART
            ▼                  ▼
     seam-analyze           wire-host
-    causal chain           TCP↔UART proxy
-    (post-mortem)          (live GDB session)
+    causal chain        --dump: crash report JSON
+    (post-mortem)       --port:  TCP↔UART bridge (GDB)
 ```
 
 | Repo | Role | When to use |
 |------|------|-------------|
 | [seam](https://github.com/JialongWang1201/seam) | Post-mortem causal chain reconstruction from the fault event ring | After a crash: `mkdbg seam analyze capture.cfl` |
-| [wire](https://github.com/JialongWang1201/wire) | Live GDB debugging over UART — halts on fault, waits for GDB | During development: `wire-host --port /dev/ttyUSB0 --baud 115200` |
+| [wire](https://github.com/JialongWang1201/wire) | Crash diagnostics over UART — zero-dependency crash dump or full GDB bridge | Quick read: `mkdbg attach --port /dev/ttyUSB0` · GDB bridge: `wire-host --port /dev/ttyUSB0` |
 
 Both are zero-dependency C99 libraries. Add both at once:
 
@@ -132,7 +132,8 @@ mkdbg incident open --name irq-timeout
 mkdbg incident status
 mkdbg capture bundle --port /dev/cu.usbmodemXXXX
 mkdbg seam analyze /path/to/capture.cfl
-mkdbg attach --break main --command continue --command bt --batch
+mkdbg attach --port /dev/cu.usbmodemXXXX          # zero-dependency crash report (no GDB)
+mkdbg attach --break main --command continue --command bt --batch  # GDB session
 mkdbg snapshot --port /dev/cu.usbmodemXXXX
 mkdbg watch --target microkernel
 ```
@@ -248,3 +249,10 @@ tools/vm32 bringup-regress --port /dev/cu.usbmodem21303
 tools/vm32 profile-regress --port /dev/cu.usbmodem21303
 tools/vm32 sonic-regress   --port /dev/cu.usbmodem21303
 ```
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+FreeRTOS is licensed under MIT. The `tools/seam` and `tools/wire` submodules are
+also MIT. CMSIS headers are Apache-2.0.
