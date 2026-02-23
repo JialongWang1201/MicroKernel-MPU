@@ -81,7 +81,9 @@ jobs:
         run: bash tools/ci_smoke.sh
 
       - name: Build native mkdbg host binary
-        run: bash tools/build_mkdbg_native.sh
+        run: |
+          cmake -S . -B build_host -DCMAKE_BUILD_TYPE=Release
+          cmake --build build_host --target mkdbg_native_host --parallel
 
       - name: Upload Smoke Artifacts
         if: always()
@@ -95,7 +97,7 @@ jobs:
             build/MicroKernel_MPU.hex
             build/MicroKernel_MPU.bin
             build/MicroKernel_MPU.map
-            build/mkdbg-native
+            build_host/mkdbg-native
 
   host-tests:
     runs-on: ubuntu-latest
