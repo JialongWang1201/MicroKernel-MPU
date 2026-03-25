@@ -41,7 +41,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-MKDBG_INSTALL_DIR="${INSTALL_DIR}" bash "${ROOT_DIR}/tools/install_mkdbg.sh" > "${INSTALL_OUT}"
+MKDBG_INSTALL_DIR="${INSTALL_DIR}" bash "${ROOT_DIR}/scripts/install.sh" > "${INSTALL_OUT}"
 test -x "${INSTALL_DIR}/mkdbg"
 
 "${INSTALL_DIR}/mkdbg" --version > "${VERSION_OUT}"
@@ -49,12 +49,12 @@ test -x "${INSTALL_DIR}/mkdbg"
 PREBUILT_BUILD_DIR="${TMP_DIR}/prebuilt-cmake-build"
 PREBUILT_BIN="${PREBUILT_BUILD_DIR}/mkdbg-native"
 cmake -S "${ROOT_DIR}" -B "${PREBUILT_BUILD_DIR}" -DCMAKE_BUILD_TYPE=Release > /dev/null
-cmake --build "${PREBUILT_BUILD_DIR}" --target mkdbg_native_host --parallel > /dev/null
+cmake --build "${PREBUILT_BUILD_DIR}" --target mkdbg-native --parallel > /dev/null
 
 MKDBG_INSTALL_DIR="${BINARY_INSTALL_DIR}" \
 MKDBG_INSTALL_BINARY_PATH="${PREBUILT_BIN}" \
 CC=missing-compiler \
-bash "${ROOT_DIR}/tools/install_mkdbg.sh" > "${BINARY_INSTALL_OUT}"
+bash "${ROOT_DIR}/scripts/install.sh" > "${BINARY_INSTALL_OUT}"
 test -x "${BINARY_INSTALL_DIR}/mkdbg"
 
 "${BINARY_INSTALL_DIR}/mkdbg" --version > "${BINARY_VERSION_OUT}"
@@ -64,7 +64,7 @@ cp "${PREBUILT_BIN}" "${RELEASE_DIR}/mkdbg-native-$(detect_host_os)-$(detect_hos
 MKDBG_INSTALL_DIR="${AUTO_INSTALL_DIR}" \
 MKDBG_INSTALL_BINARY_BASE_URL="file://${RELEASE_DIR}" \
 CC=missing-compiler \
-bash "${ROOT_DIR}/tools/install_mkdbg.sh" > "${AUTO_INSTALL_OUT}"
+bash "${ROOT_DIR}/scripts/install.sh" > "${AUTO_INSTALL_OUT}"
 test -x "${AUTO_INSTALL_DIR}/mkdbg"
 
 "${AUTO_INSTALL_DIR}/mkdbg" --version > "${AUTO_VERSION_OUT}"

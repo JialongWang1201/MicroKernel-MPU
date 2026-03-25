@@ -49,7 +49,7 @@ trap cleanup EXIT
 NATIVE_BUILD_DIR="${TMP_DIR}/cmake-build"
 NATIVE_BIN="${NATIVE_BUILD_DIR}/mkdbg-native"
 cmake -S "${ROOT_DIR}" -B "${NATIVE_BUILD_DIR}" -DCMAKE_BUILD_TYPE=Release > "${BUILD_OUT}"
-cmake --build "${NATIVE_BUILD_DIR}" --target mkdbg_native_host --parallel >> "${BUILD_OUT}"
+cmake --build "${NATIVE_BUILD_DIR}" --target mkdbg-native --parallel >> "${BUILD_OUT}"
 test -x "${NATIVE_BIN}"
 
 mkdir -p "${BIN_DIR}"

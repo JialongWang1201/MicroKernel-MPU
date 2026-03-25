@@ -90,6 +90,7 @@ set_target_properties(mkdbg-native PROPERTIES
 # ── seam-analyze: standalone causal-chain analysis tool ──────────────────────
 add_executable(seam-analyze
   host/seam_main.c
+  host/seam.c
   $<TARGET_OBJECTS:seam_lib>
 )
 target_compile_options(seam-analyze PRIVATE -Wall -Wextra -Werror -O2)

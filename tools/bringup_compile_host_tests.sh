@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="${ROOT_DIR}/build"
+EXAMPLE_DIR="${ROOT_DIR}/examples/stm32f446"
 HEADER_OUT="${BUILD_DIR}/bringup_manifest_gen.h"
 JSON_OUT="${BUILD_DIR}/bringup_manifest.export.json"
 DOC_OUT="${BUILD_DIR}/bringup_manifest.md"
@@ -15,7 +16,7 @@ python3 "${ROOT_DIR}/tools/bringup_compile.py" \
   --json-out "${JSON_OUT}" \
   --json > /dev/null
 
-cmp -s "${HEADER_OUT}" "${ROOT_DIR}/include/bringup_manifest_gen.h"
+cmp -s "${HEADER_OUT}" "${EXAMPLE_DIR}/include/bringup_manifest_gen.h"
 cmp -s "${DOC_OUT}" "${ROOT_DIR}/docs/generated/bringup_manifest.md"
 
 python3 - "${JSON_OUT}" "${DOC_OUT}" <<'PY'

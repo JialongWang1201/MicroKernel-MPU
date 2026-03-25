@@ -1,6 +1,6 @@
 # Bringup Manifest
 
-Generated from `configs/bringup/manifest.yaml` by `tools/bringup_compile.py`.
+Generated from `examples/stm32f446/configs/bringup/manifest.yaml` by `tools/bringup_compile.py`.
 
 This document is the exported view of the declarative bringup manifest that drives:
 

@@ -389,7 +389,7 @@ for item in checks:
 PY
 
 INSTALL_DIR="${TMP_DIR}/install"
-MKDBG_INSTALL_DIR="${INSTALL_DIR}" bash "${ROOT_DIR}/tools/install_mkdbg.sh" > /dev/null
+MKDBG_INSTALL_DIR="${INSTALL_DIR}" bash "${ROOT_DIR}/scripts/install.sh" > /dev/null
 test -x "${INSTALL_DIR}/mkdbg"
 
 popd >/dev/null

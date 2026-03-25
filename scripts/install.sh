@@ -4,12 +4,12 @@ set -euo pipefail
 INSTALL_DIR="${MKDBG_INSTALL_DIR:-$HOME/.local/bin}"
 TARGET="${INSTALL_DIR}/mkdbg"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LOCAL_NATIVE_SOURCE="${SCRIPT_DIR}/mkdbg_native.c"
-LOCAL_PYTHON_SOURCE="${SCRIPT_DIR}/mkdbg"
+LOCAL_NATIVE_SOURCE="${SCRIPT_DIR}/../host/main.c"
+LOCAL_PYTHON_SOURCE="${SCRIPT_DIR}/../tools/mkdbg"
 NATIVE_BINARY_PATH="${MKDBG_INSTALL_BINARY_PATH:-}"
 NATIVE_BINARY_URL="${MKDBG_INSTALL_BINARY_URL:-}"
 NATIVE_BINARY_BASE_URL="${MKDBG_INSTALL_BINARY_BASE_URL:-}"
-REPO_SLUG="${MKDBG_REPO_SLUG:-JialongWang1201/MicroKernel-MPU}"
+REPO_SLUG="${MKDBG_REPO_SLUG:-JialongWang1201/mkdbg}"
 REPO_REF="${MKDBG_REF:-main}"
 INSTALL_FLAVOR="${MKDBG_INSTALL_FLAVOR:-native}"
 CC_BIN="${CC:-cc}"
@@ -25,10 +25,11 @@ compile_native() {
   # Use CMake when in a local checkout (multi-file build)
   if [[ -f "${src_dir}/../CMakeLists.txt" ]] && command -v cmake >/dev/null 2>&1; then
     local repo_root
+    local build_dir
     repo_root="$(cd "${src_dir}/.." && pwd)"
-    local build_dir="${repo_root}/build_install_tmp"
-    cmake -S "${repo_root}" -B "${build_dir}" -DCMAKE_BUILD_TYPE=Release >/dev/null
-    cmake --build "${build_dir}" --target mkdbg_native_host >/dev/null
+    build_dir="$(mktemp -d)"
+    cmake --fresh -S "${repo_root}" -B "${build_dir}" -DCMAKE_BUILD_TYPE=Release >/dev/null
+    cmake --build "${build_dir}" --target mkdbg-native >/dev/null
     cp "${build_dir}/mkdbg-native" "${TARGET}"
     rm -rf "${build_dir}"
     return

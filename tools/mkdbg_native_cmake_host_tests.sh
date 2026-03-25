@@ -12,7 +12,7 @@ cleanup() {
 trap cleanup EXIT
 
 cmake -S "${ROOT_DIR}" -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE=Release > /dev/null
-cmake --build "${BUILD_DIR}" --target mkdbg_native_host --parallel > /dev/null
+cmake --build "${BUILD_DIR}" --target mkdbg-native --parallel > /dev/null
 
 test -x "${OUT}"
 "${OUT}" --version > /dev/null

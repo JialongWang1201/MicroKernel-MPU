@@ -118,7 +118,14 @@ static int scan_cobs_frames(const uint8_t *raw, size_t raw_len)
  */
 int mkdbg_cmd_seam(int argc, char *argv[])
 {
-    if (argc != 2 || strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0) {
+    if (argc == 2 && (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0)) {
+        fprintf(stderr, "usage: seam analyze <bundle.bin | ->\n");
+        fprintf(stderr, "  Reads a raw or COBS-framed seam binary dump\n");
+        fprintf(stderr, "  and prints the causal fault chain.\n");
+        return 0;
+    }
+
+    if (argc != 2) {
         fprintf(stderr, "usage: seam analyze <bundle.bin | ->\n");
         fprintf(stderr, "  Reads a raw or COBS-framed seam binary dump\n");
         fprintf(stderr, "  and prints the causal fault chain.\n");

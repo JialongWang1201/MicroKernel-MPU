@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
-HELLO_C="${ROOT_DIR}/demo/hello.c"
+HELLO_C="${ROOT_DIR}/examples/stm32f446/demo/hello.c"
 ASM_OUT="${TMP_DIR}/hello.asm"
 BIN_OUT="${TMP_DIR}/hello.bin"
 

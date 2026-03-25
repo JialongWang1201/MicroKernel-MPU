@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="${ROOT_DIR}/build"
+EXAMPLE_DIR="${ROOT_DIR}/examples/stm32f446"
 BIN="${BUILD_DIR}/vm32_host_tests"
 
 mkdir -p "${BUILD_DIR}"
@@ -13,11 +14,11 @@ compile_and_run() {
   cc -std=c11 -Wall -Wextra \
     -DVM32_MEM_SIZE="${mem_size}" \
     -I"${ROOT_DIR}/tests" \
-    -I"${ROOT_DIR}/include" \
-    -I"${ROOT_DIR}/tools/seam/include" \
+    -I"${EXAMPLE_DIR}/include" \
+    -I"${ROOT_DIR}/deps/seam/include" \
     -o "${BIN}" \
     "${ROOT_DIR}/tests/vm32_host_tests.c" \
-    "${ROOT_DIR}/src/vm32.c" \
+    "${EXAMPLE_DIR}/src/vm32.c" \
     "${ROOT_DIR}/tests/seam_host_stub.c"
   "${BIN}"
 }

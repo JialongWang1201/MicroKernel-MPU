@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+EXAMPLE_DIR="${ROOT_DIR}/examples/stm32f446"
 TMP_DIR="$(mktemp -d)"
 BUILD_DIR="${TMP_DIR}/build"
 HEADER_PATH="${BUILD_DIR}/generated/build_info.h"
@@ -11,8 +12,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-cmake --fresh -S "${ROOT_DIR}" -B "${BUILD_DIR}" \
-  -DCMAKE_TOOLCHAIN_FILE="${ROOT_DIR}/cmake/arm-none-eabi.cmake" \
+cmake --fresh -S "${EXAMPLE_DIR}" -B "${BUILD_DIR}" \
+  -DCMAKE_TOOLCHAIN_FILE="${EXAMPLE_DIR}/cmake/arm-none-eabi.cmake" \
   -DBUILD_PROFILE=ci-smoke \
   -DBOARD_UART_PORT=3 >/dev/null
 

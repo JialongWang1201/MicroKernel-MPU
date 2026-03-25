@@ -6,8 +6,9 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_MANIFEST = ROOT / "configs" / "bringup" / "manifest.yaml"
-DEFAULT_HEADER = ROOT / "include" / "bringup_manifest_gen.h"
+EXAMPLE_ROOT = ROOT / "examples" / "stm32f446"
+DEFAULT_MANIFEST = EXAMPLE_ROOT / "configs" / "bringup" / "manifest.yaml"
+DEFAULT_HEADER = EXAMPLE_ROOT / "include" / "bringup_manifest_gen.h"
 DEFAULT_MARKDOWN = ROOT / "docs" / "generated" / "bringup_manifest.md"
 
 PHASE_ENUMS = [
