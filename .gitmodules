@@ -1,9 +1,11 @@
-[submodule "tools/seam"]
-	path = tools/seam
+[submodule "deps/seam"]
+	path = deps/seam
 	url = https://github.com/JialongWang1201/seam.git
-[submodule "tools/wire"]
-	path = tools/wire
+
+[submodule "deps/wire"]
+	path = deps/wire
 	url = https://github.com/JialongWang1201/wire.git
-[submodule "tools/libgit2"]
-	path = tools/libgit2
+
+[submodule "deps/libgit2"]
+	path = deps/libgit2
 	url = https://github.com/libgit2/libgit2.git
