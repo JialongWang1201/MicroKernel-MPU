@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 EXAMPLE_DIR="${ROOT_DIR}/examples/stm32f446"
 TMP_DIR="$(mktemp -d)"
 BUILD_DIR="${TMP_DIR}/build"

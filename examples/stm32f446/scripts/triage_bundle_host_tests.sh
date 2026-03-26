@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 BUILD_DIR="${ROOT_DIR}/build"
 OUT_JSON="${BUILD_DIR}/triage_bundle_host.json"
 STDOUT_JSON="${BUILD_DIR}/triage_bundle_host.stdout.json"

@@ -15,7 +15,7 @@ except Exception:
     serial = None
 
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent.parent
 LOG_DIR = ROOT / "logs"
 
 SLICE_RE = re.compile(

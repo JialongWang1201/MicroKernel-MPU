@@ -9,7 +9,7 @@ from triage_bundle import build_bundle_log
 from triage_replay_lib import build_diff, build_replay
 
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent.parent
 LOG_DIR = ROOT / "logs"
 
 

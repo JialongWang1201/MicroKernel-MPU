@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 BUILD_DIR="${ROOT_DIR}/build"
 ELF_FILE="${BUILD_DIR}/MicroKernel_MPU.elf"
 OPENOCD_CFG="${ROOT_DIR}/tools/openocd.cfg"

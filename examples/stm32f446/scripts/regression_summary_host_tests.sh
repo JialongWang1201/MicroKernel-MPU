@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 BUILD_DIR="${ROOT_DIR}/build"
 OUT_JSON="${BUILD_DIR}/regression_summary.json"
 STDOUT_JSON="${BUILD_DIR}/regression_summary.stdout.json"

@@ -14,7 +14,7 @@ except Exception as exc:
 
 from regress_common import OPENOCD_CFG, rebuild_and_flash, reset_board
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent.parent
 LOG_DIR = ROOT / "logs"
 
 

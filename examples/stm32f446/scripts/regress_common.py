@@ -7,7 +7,7 @@ from pathlib import Path
 import fcntl
 
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent.parent
 OPENOCD_CFG = ROOT / "tools" / "openocd.cfg"
 OPENOCD_LOCK_PATH = Path(
     os.environ.get("MK_MPU_OPENOCD_LOCK", "/tmp/microkernel_mpu_openocd.lock")
