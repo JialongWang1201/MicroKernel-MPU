@@ -124,6 +124,34 @@ int debug_session_clear_hw_breakpoint(DebugSession *s, uint32_t addr)
     return (strcmp(resp, "OK") == 0) ? WIRE_OK : WIRE_ERR_IO;
 }
 
+/* ── DWT Hardware Watchpoints ────────────────────────────────────────────── */
+
+int debug_session_set_watchpoint(DebugSession *s, uint32_t addr,
+                                  uint32_t len, WatchpointType type)
+{
+    char cmd[32];
+    snprintf(cmd, sizeof(cmd), "Z%d,%x,%x", (int)type, addr, len ? len : 1);
+
+    char resp[16];
+    int rc = rsp_transaction(s->fd, cmd, resp, sizeof(resp));
+    if (rc != WIRE_OK) return rc;
+    return (strcmp(resp, "OK") == 0) ? WIRE_OK : WIRE_ERR_IO;
+}
+
+int debug_session_clear_watchpoint(DebugSession *s, uint32_t addr)
+{
+    /* Try all three types (write/read/access) — firmware matches by address. */
+    char cmd[32];
+    char resp[16];
+    int types[3] = { WATCHPOINT_WRITE, WATCHPOINT_READ, WATCHPOINT_ACCESS };
+    for (int i = 0; i < 3; i++) {
+        snprintf(cmd, sizeof(cmd), "z%d,%x,1", types[i], addr);
+        int rc = rsp_transaction(s->fd, cmd, resp, sizeof(resp));
+        if (rc == WIRE_OK && strcmp(resp, "OK") == 0) return WIRE_OK;
+    }
+    return WIRE_ERR_IO;
+}
+
 /* ── Register / memory inspection ───────────────────────────────────────── */
 
 int debug_session_read_regs(DebugSession *s, uint32_t regs[DEBUG_SESSION_NREGS])
