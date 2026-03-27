@@ -131,7 +131,6 @@ int cmd_configured_action(const ActionOptions *opts, const char *field, int need
 
   if (strcmp(field, "build_cmd") == 0) template = repo->build_cmd;
   else if (strcmp(field, "flash_cmd") == 0) template = repo->flash_cmd;
-  else if (strcmp(field, "hil_cmd") == 0) template = repo->hil_cmd;
   else if (strcmp(field, "snapshot_cmd") == 0) template = repo->snapshot_cmd;
   if (template == NULL || template[0] == '\0') {
     die("repo `%s` has no `%s` configured", repo_name, field);
