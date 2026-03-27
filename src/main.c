@@ -237,6 +237,12 @@ int main(int argc, char **argv)
     return mkdbg_cmd_seam(argc - 2, argv + 2);
   }
 
+  if (strcmp(argv[1], "debug") == 0) {
+    DebugOptions opts;
+    parse_debug_args(argc - 2, argv + 2, &opts);
+    return cmd_debug(&opts);
+  }
+
   die("unknown command: %s", argv[1]);
   return 2;
 }
