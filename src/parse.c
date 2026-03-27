@@ -479,3 +479,27 @@ int parse_dashboard_args(int argc, char **argv, DashboardOptions *opts)
   }
   return 0;
 }
+
+int parse_debug_args(int argc, char **argv, DebugOptions *opts)
+{
+  int i;
+  memset(opts, 0, sizeof(*opts));
+
+  for (i = 0; i < argc; ++i) {
+    if (strcmp(argv[i], "--port") == 0) {
+      if (i + 1 >= argc) die("missing value for --port");
+      opts->port = argv[++i];
+    } else if (strcmp(argv[i], "--baud") == 0) {
+      if (i + 1 >= argc) die("missing value for --baud");
+      opts->baud = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "--elf") == 0) {
+      if (i + 1 >= argc) die("missing value for --elf");
+      opts->elf_path = argv[++i];
+    } else if (argv[i][0] == '-') {
+      die("unknown debug argument: %s", argv[i]);
+    } else {
+      die("debug takes no positional arguments");
+    }
+  }
+  return 0;
+}

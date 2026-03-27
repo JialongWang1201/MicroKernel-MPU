@@ -16,7 +16,12 @@
 
 #include "mkdbg.h"
 #include "debug_session.h"
+#include "dwarf.h"
 #include "wire_host.h"
+
+/* ── Session-scoped DWARF handle (NULL if no --elf provided) ─────────────── */
+
+static DwarfDBI *s_dbi = NULL;
 
 /* ── Breakpoint list ─────────────────────────────────────────────────────── */
 
@@ -76,8 +81,15 @@ static void print_halt(DebugSession *s)
     int sig = debug_session_last_signal(s);
     printf("Halted.  signal=%d (%s)", sig, signal_name(sig));
     uint32_t regs[DEBUG_SESSION_NREGS];
-    if (debug_session_read_regs(s, regs) == WIRE_OK)
-        printf("  pc=0x%08x", regs[15]);
+    if (debug_session_read_regs(s, regs) == WIRE_OK) {
+        uint32_t pc = regs[15];
+        printf("  pc=0x%08x", pc);
+        if (s_dbi) {
+            DwarfLocation loc;
+            if (dwarf_pc_to_location(s_dbi, pc, &loc) == 0)
+                printf("  %s:%d", loc.file, loc.line);
+        }
+    }
     printf("\n");
 }
 
@@ -222,8 +234,18 @@ int cmd_debug(const DebugOptions *opts)
     if (!s) return 1;
 
     printf("mkdbg live debug  port=%s  baud=%d\n", port, baud);
-    if (opts->elf_path && *opts->elf_path)
-        printf("elf=%s  (source context: PR 10)\n", opts->elf_path);
+
+    /* Load DWARF line info if an ELF path was supplied */
+    s_dbi = NULL;
+    if (opts->elf_path && *opts->elf_path) {
+        s_dbi = dwarf_open(opts->elf_path);
+        if (s_dbi)
+            printf("elf=%s  (source info loaded)\n", opts->elf_path);
+        else
+            printf("elf=%s  (warning: could not parse .debug_line)\n",
+                   opts->elf_path);
+    }
+
     printf("Type 'help' for commands.\n\n");
 
     /* Reset state for this session */
@@ -279,5 +301,7 @@ int cmd_debug(const DebugOptions *opts)
     }
 
     debug_session_close(s);
+    dwarf_close(s_dbi);
+    s_dbi = NULL;
     return 0;
 }

@@ -79,6 +79,12 @@ int debug_session_continue(DebugSession *s)
     return rc;
 }
 
+int debug_session_detach(DebugSession *s)
+{
+    /* Send 'c' but do NOT wait — leave the MCU running and return. */
+    return rsp_send_packet(s->fd, "c");
+}
+
 int debug_session_step(DebugSession *s)
 {
     /* 's' has NO immediate reply per RSP spec — send directly, not via
