@@ -34,6 +34,45 @@ static Breakpoint s_bp[BP_MAX];
 static int        s_bp_count  = 0;
 static int        s_bp_nextid = 1;
 
+/* ── Watchpoint list (DWT) ───────────────────────────────────────────────── */
+
+#define WP_MAX 4  /* DWT comparator hardware limit */
+
+typedef struct { int id; uint32_t addr; WatchpointType type; } Watchpoint;
+
+static Watchpoint s_wp[WP_MAX];
+static int        s_wp_count  = 0;
+static int        s_wp_nextid = 1;
+
+static int wp_add(uint32_t addr, WatchpointType type)
+{
+    if (s_wp_count >= WP_MAX) return -1;
+    s_wp[s_wp_count].id   = s_wp_nextid++;
+    s_wp[s_wp_count].addr = addr;
+    s_wp[s_wp_count].type = type;
+    s_wp_count++;
+    return s_wp[s_wp_count - 1].id;
+}
+
+static int wp_remove(int id, uint32_t *addr_out)
+{
+    for (int i = 0; i < s_wp_count; i++) {
+        if (s_wp[i].id == id) {
+            *addr_out = s_wp[i].addr;
+            s_wp[i]   = s_wp[--s_wp_count];
+            return 0;
+        }
+    }
+    return -1;
+}
+
+/* ── Memory display list ─────────────────────────────────────────────────── */
+
+#define DISPLAY_MAX 8
+
+static uint32_t s_display[DISPLAY_MAX];
+static int      s_ndisplay = 0;
+
 static int bp_add(uint32_t addr)
 {
     if (s_bp_count >= BP_MAX) return -1;
@@ -214,20 +253,92 @@ static void do_info_breakpoints(void)
         printf("%-4d 0x%08x\n", s_bp[i].id, s_bp[i].addr);
 }
 
+static void do_watch(DebugSession *s, const char *args, WatchpointType type)
+{
+    if (!*args) {
+        printf("usage: watch/rwatch/awatch 0x<addr>\n"); return;
+    }
+    uint32_t addr = parse_addr(args);
+    if (debug_session_set_watchpoint(s, addr, 1, type) != WIRE_OK) {
+        printf("error: could not set watchpoint (no free DWT comparator?)\n");
+        return;
+    }
+    int id = wp_add(addr, type);
+    if (id < 0) {
+        debug_session_clear_watchpoint(s, addr);
+        printf("error: watchpoint list full\n");
+        return;
+    }
+    const char *tname = (type == WATCHPOINT_WRITE)  ? "write"  :
+                        (type == WATCHPOINT_READ)   ? "read"   : "access";
+    printf("Watchpoint %d at 0x%08x (%s)\n", id, addr, tname);
+}
+
+static void do_delete_watch(DebugSession *s, const char *args)
+{
+    if (!*args) { printf("usage: delete watch <id>\n"); return; }
+    int id = atoi(args);
+    uint32_t addr;
+    if (wp_remove(id, &addr) != 0) {
+        printf("error: no watchpoint %d\n", id); return;
+    }
+    if (debug_session_clear_watchpoint(s, addr) != WIRE_OK)
+        printf("warning: target returned error clearing watchpoint\n");
+    else
+        printf("Watchpoint %d (0x%08x) cleared.\n", id, addr);
+}
+
+static void do_info_watchpoints(void)
+{
+    if (s_wp_count == 0) { printf("No watchpoints.\n"); return; }
+    printf("Num  Address     Type\n");
+    for (int i = 0; i < s_wp_count; i++) {
+        const char *t = (s_wp[i].type == WATCHPOINT_WRITE)  ? "write"  :
+                        (s_wp[i].type == WATCHPOINT_READ)   ? "read"   : "access";
+        printf("%-4d 0x%08x  %s\n", s_wp[i].id, s_wp[i].addr, t);
+    }
+}
+
+static void do_display(const char *args)
+{
+    if (!*args) { printf("usage: display 0x<addr>\n"); return; }
+    if (s_ndisplay >= DISPLAY_MAX) { printf("error: display list full\n"); return; }
+    s_display[s_ndisplay++] = parse_addr(args);
+    printf("display %d: 0x%08x\n", s_ndisplay, s_display[s_ndisplay - 1]);
+}
+
+static void do_undisplay(const char *args)
+{
+    if (!*args) { printf("usage: undisplay <id>\n"); return; }
+    int id = atoi(args) - 1;
+    if (id < 0 || id >= s_ndisplay) { printf("error: no display %d\n", id + 1); return; }
+    for (int i = id; i < s_ndisplay - 1; i++) s_display[i] = s_display[i + 1];
+    s_ndisplay--;
+    printf("display %d removed\n", id + 1);
+}
+
 static void print_help(void)
 {
     printf(
         "Commands:\n"
-        "  break 0x<addr>      set hardware breakpoint (FPBv1)\n"
-        "  break <symbol>      set breakpoint at named function (requires --elf)\n"
-        "  clear <id>          clear breakpoint by number\n"
-        "  continue  (c)       resume execution; wait for next halt\n"
-        "  step      (s)       single-step one instruction\n"
-        "  regs                print all CPU registers\n"
-        "  mem 0x<addr> [len]  hexdump memory (default 16 bytes, max 256)\n"
-        "  info breakpoints    list active breakpoints\n"
-        "  tui                 TUI mode (PR 11)\n"
-        "  quit      (q)       resume MCU and exit\n"
+        "  break 0x<addr>           set hardware breakpoint (FPBv1)\n"
+        "  break <symbol>           set breakpoint at named function (requires --elf)\n"
+        "  clear <id>               clear breakpoint by number\n"
+        "  watch 0x<addr>           DWT write watchpoint\n"
+        "  rwatch 0x<addr>          DWT read watchpoint\n"
+        "  awatch 0x<addr>          DWT read+write watchpoint\n"
+        "  delete watch <id>        clear DWT watchpoint by number\n"
+        "  display 0x<addr>         add memory address to display list\n"
+        "  undisplay <id>           remove from display list\n"
+        "  continue  (c)            resume execution; wait for next halt\n"
+        "  step      (s)            single-step one instruction\n"
+        "  regs                     print all CPU registers\n"
+        "  mem 0x<addr> [len]       hexdump memory (default 16 bytes, max 256)\n"
+        "  info breakpoints         list active breakpoints\n"
+        "  info watchpoints         list active DWT watchpoints\n"
+        "  info display             list memory display addresses\n"
+        "  tui                      TUI mode\n"
+        "  quit      (q)            resume MCU and exit\n"
     );
 }
 
@@ -262,6 +373,9 @@ int cmd_debug(const DebugOptions *opts)
     /* Reset state for this session */
     s_bp_count  = 0;
     s_bp_nextid = 1;
+    s_wp_count  = 0;
+    s_wp_nextid = 1;
+    s_ndisplay  = 0;
 
     char line[256];
     for (;;) {
@@ -292,11 +406,31 @@ int cmd_debug(const DebugOptions *opts)
             do_regs(s);
         } else if (strcmp(cmd, "mem") == 0) {
             do_mem(s, args);
+        } else if (strcmp(cmd, "watch") == 0) {
+            do_watch(s, args, WATCHPOINT_WRITE);
+        } else if (strcmp(cmd, "rwatch") == 0) {
+            do_watch(s, args, WATCHPOINT_READ);
+        } else if (strcmp(cmd, "awatch") == 0) {
+            do_watch(s, args, WATCHPOINT_ACCESS);
+        } else if (strcmp(cmd, "delete") == 0) {
+            char sub[16];
+            const char *rest = split_token(args, sub, sizeof(sub));
+            if (strcmp(sub, "watch") == 0) do_delete_watch(s, rest);
+            else printf("delete: unknown subcommand '%s'\n", sub);
+        } else if (strcmp(cmd, "display") == 0) {
+            do_display(args);
+        } else if (strcmp(cmd, "undisplay") == 0) {
+            do_undisplay(args);
         } else if (strcmp(cmd, "info") == 0) {
             char sub[32];
             split_token(args, sub, sizeof(sub));
             if (strcmp(sub, "breakpoints") == 0) do_info_breakpoints();
-            else printf("info: unknown subcommand '%s'\n", sub);
+            else if (strcmp(sub, "watchpoints") == 0) do_info_watchpoints();
+            else if (strcmp(sub, "display") == 0) {
+                if (s_ndisplay == 0) printf("No display addresses.\n");
+                else for (int i = 0; i < s_ndisplay; i++)
+                    printf("%d: 0x%08x\n", i + 1, s_display[i]);
+            } else printf("info: unknown subcommand '%s'\n", sub);
         } else if (strcmp(cmd, "tui") == 0) {
             int ret = debug_tui_run(s, s_dbi);
             if (ret == TUI_QUIT) {

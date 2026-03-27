@@ -55,6 +55,24 @@ int debug_session_set_hw_breakpoint(DebugSession *s, uint32_t addr);
  * Returns WIRE_OK, or WIRE_ERR_IO if addr was not an active breakpoint. */
 int debug_session_clear_hw_breakpoint(DebugSession *s, uint32_t addr);
 
+/* ── DWT Hardware Watchpoints ────────────────────────────────────────────── */
+
+/* Watchpoint type matches GDB RSP Z-packet type codes. */
+typedef enum {
+    WATCHPOINT_WRITE  = 2,  /* Z2 — halt on write to addr */
+    WATCHPOINT_READ   = 3,  /* Z3 — halt on read from addr */
+    WATCHPOINT_ACCESS = 4,  /* Z4 — halt on read or write */
+} WatchpointType;
+
+/* Set a DWT hardware watchpoint at addr (len bytes, exact match when len=1).
+ * Returns WIRE_OK, or WIRE_ERR_IO if all DWT comparators are occupied. */
+int debug_session_set_watchpoint(DebugSession *s, uint32_t addr,
+                                  uint32_t len, WatchpointType type);
+
+/* Clear DWT watchpoint at addr.
+ * Returns WIRE_OK, or WIRE_ERR_IO if addr was not an active watchpoint. */
+int debug_session_clear_watchpoint(DebugSession *s, uint32_t addr);
+
 /* ── Register / memory inspection ───────────────────────────────────────── */
 
 /* Read all CPU registers into regs[DEBUG_SESSION_NREGS].

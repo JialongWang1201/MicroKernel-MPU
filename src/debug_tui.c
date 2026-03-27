@@ -34,19 +34,25 @@
 
 #define REG_ROWS     8    /* register panel content rows (r0-r12 + sp/lr/pc/xpsr) */
 #define CTX_HALF     4    /* source context: ±4 lines around PC = 9 visible lines */
-#define MAX_WATCHES  4
+#define MAX_DISPLAY  4
+#define TUI_WP_MAX   4
 
 /* ── Local state ─────────────────────────────────────────────────────────── */
 
 #define TUI_BP_MAX 8
 typedef struct { int id; uint32_t addr; } TuiBP;
+typedef struct { int id; uint32_t addr; WatchpointType type; } TuiWP;
 
 static TuiBP    s_bp[TUI_BP_MAX];
 static int      s_nbp      = 0;
 static int      s_bp_next  = 1;
 
-static uint32_t s_watches[MAX_WATCHES];
-static int      s_nwatches = 0;
+static TuiWP    s_wpts[TUI_WP_MAX];
+static int      s_nwpts    = 0;
+static int      s_wp_next  = 1;
+
+static uint32_t s_display[MAX_DISPLAY];
+static int      s_ndisplay = 0;
 
 static uint32_t s_regs[DEBUG_SESSION_NREGS];
 static int      s_regs_ok  = 0;
@@ -187,7 +193,7 @@ static void draw_reg_bp(int y0, int h, int w, DwarfDBI *dbi, uint32_t pc)
     hline(y0, 12, split);
     bchar(split, y0, "\xe2\x94\xac");                  /* ┬ */
     tb_print(split + 1, y0, TB_CYAN, TB_DEFAULT,
-             "\xe2\x94\x80 Breakpoints ");
+             "\xe2\x94\x80 BP / WP ");
     hline(y0, split + 14, w - 1);
     bchar(w - 1, y0, "\xe2\x94\xa4");                  /* ┤ */
 
@@ -219,7 +225,7 @@ static void draw_reg_bp(int y0, int h, int w, DwarfDBI *dbi, uint32_t pc)
 
         bchar(split, y0 + 1 + r, "\xe2\x94\x82");      /* │ middle */
 
-        /* ── Breakpoints (right half) ── */
+        /* ── Breakpoints + Watchpoints (right half) ── */
         if (r < s_nbp) {
             DwarfLocation loc;
             char loc_str[64] = "";
@@ -229,9 +235,17 @@ static void draw_reg_bp(int y0, int h, int w, DwarfDBI *dbi, uint32_t pc)
                 snprintf(loc_str, sizeof(loc_str), " %s:%d", base, loc.line);
             }
             tb_printf(split + 1, y0 + 1 + r, TB_DEFAULT, TB_DEFAULT,
-                      " #%-2d 0x%08x%-*s",
+                      " #%-2d 0x%08x (BP)%-*s",
                       s_bp[r].id, s_bp[r].addr,
-                      bp_content_w - 18, loc_str);
+                      bp_content_w - 22, loc_str);
+        } else if (r - s_nbp < s_nwpts) {
+            int wi = r - s_nbp;
+            const char *t = (s_wpts[wi].type == WATCHPOINT_WRITE)  ? "W " :
+                            (s_wpts[wi].type == WATCHPOINT_READ)   ? "R " : "RW";
+            tb_printf(split + 1, y0 + 1 + r, TB_YELLOW, TB_DEFAULT,
+                      " W%-2d 0x%08x (%s)%-*s",
+                      s_wpts[wi].id, s_wpts[wi].addr, t,
+                      bp_content_w - 24, "");
         }
         (void)bp_content_w;
 
@@ -255,9 +269,9 @@ static void draw_mem(int y0, int h, int w, DebugSession *s)
 
     for (int r = 0; r < h; r++) {
         bchar(0, y0 + 1 + r, "\xe2\x94\x82");
-        if (r < s_nwatches) {
+        if (r < s_ndisplay) {
             uint8_t buf[16];
-            if (debug_session_read_mem(s, s_watches[r], 16, buf) == WIRE_OK) {
+            if (debug_session_read_mem(s, s_display[r], 16, buf) == WIRE_OK) {
                 char hex[64];
                 int pos = 0;
                 for (int i = 0; i < 16; i++) {
@@ -266,10 +280,10 @@ static void draw_mem(int y0, int h, int w, DebugSession *s)
                 }
                 hex[pos > 0 ? pos - 1 : 0] = '\0';
                 tb_printf(2, y0 + 1 + r, TB_DEFAULT, TB_DEFAULT,
-                          "0x%08x: %s", s_watches[r], hex);
+                          "0x%08x: %s", s_display[r], hex);
             } else {
                 tb_printf(2, y0 + 1 + r, TB_RED, TB_DEFAULT,
-                          "0x%08x: <read error>", s_watches[r]);
+                          "0x%08x: <read error>", s_display[r]);
             }
         }
         bchar(w - 1, y0 + 1 + r, "\xe2\x94\x82");
@@ -285,7 +299,7 @@ static void draw_bottom(int y_border, int y_hint, int w)
     bchar(w - 1, y_border, "\xe2\x94\x98");            /* ┘ */
 
     tb_print(0, y_hint, TB_YELLOW, TB_DEFAULT,
-             "[s]tep [c]ontinue [b]reak [d]el [m]em [t]cli [q]uit");
+             "[s]tep [c]ontinue [b]reak [d]el [w]atch [m]em [t]cli [q]uit");
 }
 
 /* ── Status bar (replaces hint bar during blocking ops) ──────────────────── */
@@ -308,7 +322,7 @@ static void redraw(DebugSession *s, DwarfDBI *dbi)
     tb_clear();
 
     /* Compute panel heights */
-    int mem_h  = (s_nwatches > 0) ? s_nwatches : 1;
+    int mem_h  = (s_ndisplay > 0) ? s_ndisplay : 1;
     int src_h  = h - REG_ROWS - mem_h - 6;
     /* 6 = top_border(1) + reg_sep(1) + mem_sep(1) + bottom_border(1) + hint(1) + 1 spare */
     if (src_h < 3) src_h = 3;
@@ -396,7 +410,9 @@ int debug_tui_run(DebugSession *s, DwarfDBI *dbi)
     /* Reset local state */
     s_nbp      = 0;
     s_bp_next  = 1;
-    s_nwatches = 0;
+    s_nwpts    = 0;
+    s_wp_next  = 1;
+    s_ndisplay = 0;
     s_regs_ok  = 0;
     s_pc       = 0;
 
@@ -467,11 +483,28 @@ int debug_tui_run(DebugSession *s, DwarfDBI *dbi)
             redraw(s, dbi);
 
         } else if (ev.ch == 'm') {
-            if (s_nwatches < MAX_WATCHES) {
+            if (s_ndisplay < MAX_DISPLAY) {
+                char inp[32] = "";
+                if (tui_prompt(y_hint, w, "display addr> 0x", inp, sizeof(inp)) == 0
+                        && inp[0]) {
+                    s_display[s_ndisplay++] = (uint32_t)strtoul(inp, NULL, 16);
+                }
+            }
+            redraw(s, dbi);
+
+        } else if (ev.ch == 'w') {
+            if (s_nwpts < TUI_WP_MAX) {
                 char inp[32] = "";
                 if (tui_prompt(y_hint, w, "watch addr> 0x", inp, sizeof(inp)) == 0
                         && inp[0]) {
-                    s_watches[s_nwatches++] = (uint32_t)strtoul(inp, NULL, 16);
+                    uint32_t addr = (uint32_t)strtoul(inp, NULL, 16);
+                    if (addr && debug_session_set_watchpoint(
+                            s, addr, 1, WATCHPOINT_WRITE) == WIRE_OK) {
+                        s_wpts[s_nwpts].id   = s_wp_next++;
+                        s_wpts[s_nwpts].addr = addr;
+                        s_wpts[s_nwpts].type = WATCHPOINT_WRITE;
+                        s_nwpts++;
+                    }
                 }
             }
             redraw(s, dbi);
