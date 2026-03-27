@@ -8,7 +8,7 @@ LOCAL_NATIVE_SOURCE="${SCRIPT_DIR}/../src/main.c"
 LOCAL_PYTHON_SOURCE="${SCRIPT_DIR}/../examples/stm32f446/scripts/mkdbg"
 NATIVE_BINARY_PATH="${MKDBG_INSTALL_BINARY_PATH:-}"
 NATIVE_BINARY_URL="${MKDBG_INSTALL_BINARY_URL:-}"
-NATIVE_BINARY_BASE_URL="${MKDBG_INSTALL_BINARY_BASE_URL:-}"
+NATIVE_BINARY_BASE_URL="${MKDBG_INSTALL_BINARY_BASE_URL:-https://github.com/${REPO_SLUG}/releases/latest/download}"
 REPO_SLUG="${MKDBG_REPO_SLUG:-JialongWang1201/mkdbg}"
 REPO_REF="${MKDBG_REF:-main}"
 INSTALL_FLAVOR="${MKDBG_INSTALL_FLAVOR:-native}"
@@ -54,6 +54,35 @@ require_curl() {
   fi
 }
 
+require_git() {
+  if ! command -v git >/dev/null 2>&1; then
+    echo "error: git is required for remote installation (used to clone source + submodules)" >&2
+    exit 2
+  fi
+}
+
+require_cmake() {
+  if ! command -v cmake >/dev/null 2>&1; then
+    echo "error: cmake is required to build mkdbg from source" >&2
+    exit 2
+  fi
+}
+
+clone_and_build() {
+  local tmp_dir="$1"
+  echo "Cloning mkdbg (${REPO_SLUG}@${REPO_REF})..."
+  git clone --recurse-submodules --depth 1 --shallow-submodules \
+    --branch "${REPO_REF}" \
+    "https://github.com/${REPO_SLUG}.git" \
+    "${tmp_dir}/mkdbg" >/dev/null 2>&1
+  echo "Building mkdbg-native..."
+  local build_dir="${tmp_dir}/build"
+  cmake -S "${tmp_dir}/mkdbg" -B "${build_dir}" \
+    -DCMAKE_BUILD_TYPE=Release >/dev/null 2>&1
+  cmake --build "${build_dir}" --target mkdbg-native >/dev/null 2>&1
+  cp "${build_dir}/mkdbg-native" "${TARGET}"
+}
+
 install_native_binary_path() {
   local binary_path="$1"
 
@@ -72,6 +101,20 @@ install_native_binary_url() {
   require_curl
   curl -fsSL "${binary_url}" -o "${tmp_target}"
   mv "${tmp_target}" "${TARGET}"
+}
+
+# Try to download a pre-built binary; returns 0 on success, 1 if not found.
+try_prebuilt() {
+  local base_url="$1"
+  local binary_url
+  binary_url="$(resolve_native_binary_url "${base_url}")"
+  local tmp_target="${TARGET}.tmp"
+  if curl -fsSL "${binary_url}" -o "${tmp_target}" 2>/dev/null; then
+    mv "${tmp_target}" "${TARGET}"
+    return 0
+  fi
+  rm -f "${tmp_target}"
+  return 1
 }
 
 detect_host_os() {
@@ -111,24 +154,33 @@ mkdir -p "${INSTALL_DIR}"
 case "${INSTALL_FLAVOR}" in
   native)
     if [[ -n "${NATIVE_BINARY_PATH}" ]]; then
+      # Explicit local binary override
       install_native_binary_path "${NATIVE_BINARY_PATH}"
       INSTALL_MODE="native-binary"
-    elif [[ -n "${NATIVE_BINARY_BASE_URL}" ]]; then
-      install_native_binary_url "$(resolve_native_binary_url "${NATIVE_BINARY_BASE_URL}")"
-      INSTALL_MODE="native-binary"
     elif [[ -n "${NATIVE_BINARY_URL}" ]]; then
+      # Explicit binary URL override
       install_native_binary_url "${NATIVE_BINARY_URL}"
       INSTALL_MODE="native-binary"
     elif [[ -f "${LOCAL_NATIVE_SOURCE}" ]]; then
+      # Running from a local checkout — build with CMake
       compile_native "${LOCAL_NATIVE_SOURCE}"
       INSTALL_MODE="native-source"
     else
+      # Remote install: try pre-built binary first (fast, zero build-tool deps),
+      # fall back to git clone + cmake if no release binary exists yet.
       require_curl
-      TMP_DIR="$(mktemp -d)"
-      trap 'rm -rf "${TMP_DIR}"' EXIT
-      curl -fsSL "${REMOTE_NATIVE_URL}" -o "${TMP_DIR}/mkdbg_native.c"
-      compile_native "${TMP_DIR}/mkdbg_native.c"
-      INSTALL_MODE="native-source"
+      echo "Trying pre-built binary..."
+      if try_prebuilt "${NATIVE_BINARY_BASE_URL}"; then
+        INSTALL_MODE="native-binary"
+      else
+        echo "No pre-built binary found — building from source (requires git + cmake)..."
+        require_git
+        require_cmake
+        TMP_DIR="$(mktemp -d)"
+        trap 'rm -rf "${TMP_DIR}"' EXIT
+        clone_and_build "${TMP_DIR}"
+        INSTALL_MODE="native-source"
+      fi
     fi
     ;;
   python)
