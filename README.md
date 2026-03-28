@@ -75,6 +75,7 @@ mkdbg attach --port /dev/ttyUSB0 --arch cortex-m
 | Command | What you get |
 |---------|-------------|
 | `mkdbg attach` | Crash report: fault type, registers, heuristic backtrace |
+| `mkdbg debug --port /dev/ttyUSB0 --elf fw.elf` | Interactive live debugger: breakpoints, watchpoints, registers, step/continue, FreeRTOS task name |
 | `mkdbg seam analyze capture.cfl` | Causal chain from the fault event ring — *what led to the crash* |
 | `mkdbg dashboard` | Terminal UI: live probe status, build age, git state |
 | `wire-host --port /dev/ttyUSB0` | TCP↔UART bridge so `arm-none-eabi-gdb` connects without a probe |
@@ -86,6 +87,19 @@ mkdbg attach --port /dev/ttyUSB0 --arch cortex-m
 mkdbg is board-agnostic. The firmware agent is C99 with no OS dependencies — link it into FreeRTOS, Zephyr, bare-metal, anything.
 
 Porting checklist: implement `wire_uart_send` / `wire_uart_recv`, call `wire_on_fault()` from your fault handler. Done.
+
+The host tool supports **Cortex-M** and **RISC-V 32-bit** out of the box. Pass `--arch riscv32` to `mkdbg debug` for RISC-V targets.
+
+---
+
+## Documentation
+
+| Doc | What's in it |
+|-----|-------------|
+| [`docs/COMMANDS.md`](docs/COMMANDS.md) | Full command reference and config format |
+| [`docs/PORTING.md`](docs/PORTING.md) | Porting the firmware agent to a new MCU |
+| [`docs/DEVELOPER_GUIDE.md`](docs/DEVELOPER_GUIDE.md) | Source layout, build, testing, adding arch plugins |
+| [`examples/stm32f446/`](examples/stm32f446/) | STM32F446RE reference implementation |
 
 ---
 

@@ -27,7 +27,7 @@ This installs the native C frontend as `mkdbg`.
 One-line remote install:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/JialongWang1201/MicroKernel-MPU/main/tools/install_mkdbg.sh | sh
+curl -fsSL https://raw.githubusercontent.com/JialongWang1201/mkdbg/main/scripts/install.sh | sh
 ```
 
 The remote installer currently builds the native frontend from source and
@@ -169,6 +169,8 @@ Current MVP supports:
 - `mkdbg attach`
 - `mkdbg run`
 - `mkdbg watch`
+- `mkdbg seam analyze`
+- `mkdbg debug`
 
 It intentionally does not try to replace:
 

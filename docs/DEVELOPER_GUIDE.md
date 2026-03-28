@@ -35,8 +35,14 @@ mkdbg is a host CLI for embedded crash diagnostics over UART.
   │                  │                                       │
   │                  └──► git.c, incident.c, probe.c, ...   │
   │                                                          │
+  │  debug_session.c ──► debug_cli.c ──► debug_tui.c        │
+  │  (GDB RSP transport)  (break/watch/step)  (TUI overlay) │
+  │       │                     │                            │
+  │       └──── dwarf.c (ELF symbol + DWARF lookup)         │
+  │                                                          │
   │  arch/ ──► arch_registry.c ──► cortex_m.c               │
-  │            (decode_crash plugin interface)               │
+  │            (decode_crash + live_debug plugin interface)  │
+  │                          └──► riscv32.c                  │
   └──────────────────────────────────────────────────────────┘
                     │ UART
   ┌──────────────────────────────────────────────────────────┐
@@ -51,9 +57,9 @@ mkdbg is a host CLI for embedded crash diagnostics over UART.
 1. `wire.c` forks `wire-host --dump` (or calls `wire_probe_dump()` directly)
 2. `wire_crash.c` exchanges three RSP transactions with the halted MCU:
    - `?` → halt signal
-   - `g` → 17 registers
+   - `g` → registers (17 for Cortex-M, 33 for RISC-V 32)
    - `m <sp>,100` → 256 stack bytes
-   - `m e000ed28,4` → CFSR
+   - `m e000ed28,4` → CFSR (Cortex-M only)
 3. Result is a JSON `WireCrashReport`
 4. `action.c` formats and prints the crash report
 
@@ -73,6 +79,10 @@ src/                   mkdbg host CLI (C11, no external deps beyond deps/)
   wire.c               wire probe integration
   seam.c               seam causal-chain integration
   dashboard.c          TUI (termbox2)
+  debug_session.c      GDB RSP transport layer (connect, read regs/mem, set BPs)
+  debug_cli.c          interactive live debug CLI (break, watch, step, continue, ...)
+  debug_tui.c          TUI overlay for live debug (source panel, register panel)
+  dwarf.c              ELF DWARF + .symtab symbol lookup (used by debug)
   git.c                libgit2 wrappers
   probe.c              device probe detection
   incident.c           incident metadata
@@ -86,9 +96,10 @@ src/                   mkdbg host CLI (C11, no external deps beyond deps/)
   termbox2.h           vendored single-header TUI library
 
 arch/                  MCU architecture plugins
-  arch.h               MkdbgArch interface + mkdbg_arch_find()
+  arch.h               MkdbgArch + ArchLiveDebug interface + mkdbg_arch_find()
   arch_registry.c      static registry of built-in arch implementations
-  cortex_m.c           Cortex-M: CFSR decode, heuristic backtrace, registers
+  cortex_m.c           Cortex-M: CFSR decode, heuristic backtrace, 17 registers
+  riscv32.c            RISC-V 32-bit: 33 registers (x0-x31 + pc)
 
 deps/                  git submodules
   wire/                RSP stub firmware agent + host crash library
@@ -96,7 +107,9 @@ deps/                  git submodules
   libgit2/             local git ops (no git CLI required at runtime)
 
 tests/
-  arch_test.c          arch plugin registry smoke test
+  arch_test.c          arch plugin registry + live_debug descriptor tests (17 tests)
+  dwarf_test.c         DWARF/ELF symbol lookup tests — STT_FUNC + STT_OBJECT (9 tests)
+  smoke.sh             end-to-end build + binary sanity check
   fixtures/            test input files
 
 examples/stm32f446/    STM32F446RE reference implementation
@@ -155,9 +168,18 @@ static int your_arch_decode_crash(const uint8_t *raw, size_t len,
     return 0;
 }
 
+/* Optional: live debug register descriptor (needed for `mkdbg debug`) */
+static const ArchLiveDebug your_arch_live = {
+    .nregs       = 17,         /* total register count */
+    .pc_reg_idx  = 15,         /* index of the PC register */
+    .sp_reg_idx  = 13,         /* index of the SP register */
+    .reg_names   = {"r0", "r1", /* ... */, "pc", NULL},
+};
+
 const MkdbgArch your_arch_arch = {
-    .name         = "your-arch",   /* matched by --arch flag */
+    .name         = "your-arch",       /* matched by --arch flag */
     .decode_crash = your_arch_decode_crash,
+    .live_debug   = &your_arch_live,   /* NULL = crash-decode only, no live debug */
 };
 ```
 
@@ -198,13 +220,20 @@ add_executable(mkdbg-native
 ### Host unit tests
 
 ```bash
-# arch plugin registry
+# arch plugin registry + live_debug descriptors (17 tests)
 cmake --build build_host --target arch_test
 ./build_host/arch_test
+
+# DWARF / ELF symbol lookup (9 tests)
+cmake --build build_host --target dwarf_test
+./build_host/dwarf_test
 
 # seam-analyze integration
 cmake --build build_host --target seam-analyze
 ./build_host/seam-analyze deps/seam/test/fixtures/normal_kdi_cascade.cfl
+
+# Full build + binary smoke test
+bash tests/smoke.sh
 
 # STM32 reference build + scripts (requires arm-none-eabi-gcc)
 bash examples/stm32f446/scripts/ci_smoke.sh
