@@ -8,8 +8,10 @@ LOCAL_NATIVE_SOURCE="${SCRIPT_DIR}/../src/main.c"
 LOCAL_PYTHON_SOURCE="${SCRIPT_DIR}/../examples/stm32f446/scripts/mkdbg"
 NATIVE_BINARY_PATH="${MKDBG_INSTALL_BINARY_PATH:-}"
 NATIVE_BINARY_URL="${MKDBG_INSTALL_BINARY_URL:-}"
-NATIVE_BINARY_BASE_URL="${MKDBG_INSTALL_BINARY_BASE_URL:-https://github.com/${REPO_SLUG}/releases/latest/download}"
 REPO_SLUG="${MKDBG_REPO_SLUG:-JialongWang1201/mkdbg}"
+NATIVE_BINARY_BASE_URL="${MKDBG_INSTALL_BINARY_BASE_URL:-https://github.com/${REPO_SLUG}/releases/latest/download}"
+# Track whether the caller explicitly set a base URL (vs our default)
+NATIVE_BINARY_BASE_URL_EXPLICIT="${MKDBG_INSTALL_BINARY_BASE_URL:+yes}"
 REPO_REF="${MKDBG_REF:-main}"
 INSTALL_FLAVOR="${MKDBG_INSTALL_FLAVOR:-native}"
 CC_BIN="${CC:-cc}"
@@ -161,6 +163,21 @@ case "${INSTALL_FLAVOR}" in
       # Explicit binary URL override
       install_native_binary_url "${NATIVE_BINARY_URL}"
       INSTALL_MODE="native-binary"
+    elif [[ -n "${NATIVE_BINARY_BASE_URL_EXPLICIT}" ]]; then
+      # Caller explicitly set a base URL — try it before falling back to local compile
+      require_curl
+      if try_prebuilt "${NATIVE_BINARY_BASE_URL}"; then
+        INSTALL_MODE="native-binary"
+      else
+        echo "No pre-built binary at ${NATIVE_BINARY_BASE_URL} — falling back to local build..." >&2
+        if [[ -f "${LOCAL_NATIVE_SOURCE}" ]]; then
+          compile_native "${LOCAL_NATIVE_SOURCE}"
+          INSTALL_MODE="native-source"
+        else
+          echo "error: no binary found at base URL and no local source available" >&2
+          exit 2
+        fi
+      fi
     elif [[ -f "${LOCAL_NATIVE_SOURCE}" ]]; then
       # Running from a local checkout — build with CMake
       compile_native "${LOCAL_NATIVE_SOURCE}"
