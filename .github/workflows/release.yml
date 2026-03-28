@@ -27,9 +27,10 @@ jobs:
             arch: arm64
             cross: true
 
-          - runner: macos-13        # Intel
+          - runner: macos-latest    # cross-compile x86_64 from Apple Silicon
             os: darwin
             arch: x86_64
+            osx_arch: x86_64
 
           - runner: macos-latest    # Apple Silicon
             os: darwin
@@ -52,7 +53,13 @@ jobs:
       - name: Configure (native)
         if: "!matrix.cross"
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          OSX_ARCH="${{ matrix.osx_arch }}"
+          if [[ -n "${OSX_ARCH}" ]]; then
+            cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_OSX_ARCHITECTURES="${OSX_ARCH}"
+          else
+            cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          fi
 
       - name: Configure (cross linux-arm64)
         if: matrix.cross == true
