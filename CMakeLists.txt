@@ -79,6 +79,10 @@ add_executable(mkdbg-native
   $<TARGET_OBJECTS:seam_lib>
   $<TARGET_OBJECTS:wire_crash_lib>
 )
+# termbox2 is a vendored single-header lib; suppress its unused-result warning
+set_source_files_properties(src/termbox2_impl.c PROPERTIES
+  COMPILE_OPTIONS "-Wno-unused-result"
+)
 target_compile_options(mkdbg-native PRIVATE -Wall -Wextra -Werror -O2)
 target_include_directories(mkdbg-native PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/src

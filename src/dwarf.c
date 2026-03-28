@@ -7,6 +7,11 @@
  * SPDX-License-Identifier: MIT
  */
 
+/* strdup is POSIX, not C11 — request it before any system header */
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #include "dwarf.h"
 
 #include <fcntl.h>
