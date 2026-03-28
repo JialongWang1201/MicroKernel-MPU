@@ -21,7 +21,7 @@ LOCAL_PYTHON_SOURCE="${SCRIPT_DIR:+${SCRIPT_DIR}/../examples/stm32f446/scripts/m
 NATIVE_BINARY_PATH="${MKDBG_INSTALL_BINARY_PATH:-}"
 NATIVE_BINARY_URL="${MKDBG_INSTALL_BINARY_URL:-}"
 REPO_SLUG="${MKDBG_REPO_SLUG:-JialongWang1201/mkdbg}"
-NATIVE_BINARY_BASE_URL="${MKDBG_INSTALL_BINARY_BASE_URL:-https://github.com/${REPO_SLUG}/releases/latest/download}"
+NATIVE_BINARY_BASE_URL="${MKDBG_INSTALL_BINARY_BASE_URL:-https://github.com/${REPO_SLUG}/releases/download/latest}"
 # Track whether the caller explicitly set a base URL (vs our default)
 NATIVE_BINARY_BASE_URL_EXPLICIT="${MKDBG_INSTALL_BINARY_BASE_URL:+yes}"
 REPO_REF="${MKDBG_REF:-main}"
