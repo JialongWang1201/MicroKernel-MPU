@@ -1,5 +1,7 @@
 #include "mkdbg.h"
 
+#include <stddef.h>
+
 void build_action_context(const char *config_path,
                           const char *repo_name,
                           const RepoConfig *repo,
@@ -129,10 +131,21 @@ int cmd_configured_action(const ActionOptions *opts, const char *field, int need
     die("repo `%s` not found in %s", repo_name, config_path);
   }
 
-  if (strcmp(field, "build_cmd") == 0) template = repo->build_cmd;
-  else if (strcmp(field, "flash_cmd") == 0) template = repo->flash_cmd;
-  else if (strcmp(field, "hil_cmd") == 0) template = repo->hil_cmd;
-  else if (strcmp(field, "snapshot_cmd") == 0) template = repo->snapshot_cmd;
+  {
+    static const struct { const char *name; size_t off; } fields[] = {
+      { "build_cmd",    offsetof(RepoConfig, build_cmd)    },
+      { "flash_cmd",    offsetof(RepoConfig, flash_cmd)    },
+      { "hil_cmd",      offsetof(RepoConfig, hil_cmd)      },
+      { "snapshot_cmd", offsetof(RepoConfig, snapshot_cmd) },
+    };
+    size_t fi;
+    for (fi = 0; fi < sizeof(fields) / sizeof(fields[0]); fi++) {
+      if (strcmp(field, fields[fi].name) == 0) {
+        template = (const char *)repo + fields[fi].off;
+        break;
+      }
+    }
+  }
   if (template == NULL || template[0] == '\0') {
     die("repo `%s` has no `%s` configured", repo_name, field);
   }

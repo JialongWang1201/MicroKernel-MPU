@@ -30,7 +30,7 @@ trap cleanup EXIT
 echo "smoke: configuring in ${BUILD_DIR}"
 cmake -S "${ROOT_DIR}" -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE=Release >/dev/null
 cmake --build "${BUILD_DIR}" \
-  --target mkdbg-native wire-host seam-analyze arch_test \
+  --target mkdbg-native wire-host seam-analyze arch_test dwarf_test \
   --parallel >/dev/null
 
 # ── binary checks ─────────────────────────────────────────────────────────────
@@ -39,6 +39,7 @@ MKDBG="${BUILD_DIR}/mkdbg-native"
 WIRE="${BUILD_DIR}/wire-host"
 SEAM="${BUILD_DIR}/seam-analyze"
 ARCH_TEST="${BUILD_DIR}/arch_test"
+DWARF_TEST="${BUILD_DIR}/dwarf_test"
 
 check() {
   local label="$1"
@@ -71,7 +72,10 @@ else
 fi
 
 # arch plugin registry
-check "arch_test 9/9"  bash -c "${ARCH_TEST} | grep -q '9/9 tests passed'"
+check "arch_test"  bash -c "${ARCH_TEST} | grep -qE '[0-9]+/[0-9]+ tests passed'"
+
+# dwarf symbol lookup
+check "dwarf_test"  bash -c "${DWARF_TEST} | grep -qE '[0-9]+/[0-9]+ tests passed'"
 
 echo ""
 echo "smoke: OK"

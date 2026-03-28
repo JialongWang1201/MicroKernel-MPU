@@ -579,7 +579,8 @@ int dwarf_sym_to_addr(DwarfDBI *dbi, const char *name, uint32_t *addr)
         uint32_t       st_nm  = le32(e + 0);
         uint32_t       st_val = le32(e + 4);
         uint8_t        st_inf = e[12];
-        if ((st_inf & 0xfu) != 2u) continue;           /* not STT_FUNC */
+        uint8_t        stt    = st_inf & 0xfu;
+        if (stt != 1u && stt != 2u) continue;          /* skip non-FUNC/OBJECT */
         if (st_nm >= (uint32_t)dbi->str_size) continue;
         if (strcmp((const char *)dbi->str_data + st_nm, name) == 0) {
             *addr = st_val;
