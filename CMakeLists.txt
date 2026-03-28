@@ -159,3 +159,14 @@ target_include_directories(arch_test PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/arch
 )
 add_test(NAME arch_registry COMMAND arch_test)
+
+# ── ctest: dwarf symbol lookup ────────────────────────────────────────────────
+add_executable(dwarf_test
+  tests/dwarf_test.c
+  src/dwarf.c
+)
+target_compile_options(dwarf_test PRIVATE -Wall -Wextra -Werror -O2)
+target_include_directories(dwarf_test PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/src
+)
+add_test(NAME dwarf_sym_lookup COMMAND dwarf_test)
