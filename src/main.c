@@ -151,7 +151,7 @@ int main(int argc, char **argv)
   g_color = isatty(STDOUT_FILENO);
 
   if (argc == 2 && strcmp(argv[1], "--version") == 0) {
-    printf("mkdbg %s\n", MKDBG_NATIVE_VERSION);
+    printf("mkdbg-native %s\n", MKDBG_NATIVE_VERSION);
     return 0;
   }
   if (argc < 2 ||
