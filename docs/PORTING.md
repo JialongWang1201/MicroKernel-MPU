@@ -176,3 +176,14 @@ Baud rate mismatch.  Pass `--baud <rate>` to mkdbg.
 
 `parse_registers` got a short RSP response.  Verify `wire_uart_recv` blocks
 until all bytes arrive (not just one read-and-return).
+
+**Live debug breakpoints not firing on Cortex-M7 or Cortex-M33**
+
+These cores use FPBv2 (Flash Patch and Breakpoint revision 2).  The wire
+agent auto-detects the revision at runtime by reading `FPB_CTRL.REV`
+(bits [31:28]).  FPBv2 requires a KEY bit alongside ENABLE in the same
+write to `FP_CTRL` — a read-modify-write is silently ignored.
+
+`wire_enable_debug_monitor()` handles this automatically.  If breakpoints
+still do not fire, check that `DEMCR.MON_EN` is set and that DebugMonitor
+is not masked by `BASEPRI` or `PRIMASK` on your target.
