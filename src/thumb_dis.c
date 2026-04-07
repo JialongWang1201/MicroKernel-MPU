@@ -426,3 +426,260 @@ done16:
     return 2;
 }
 
+/* ── 32-bit decoder ──────────────────────────────────────────────────────── */
+
+static int decode_32(uint32_t pc, uint16_t hw1, uint16_t hw2,
+                     char *out, size_t out_sz, uint8_t *itstate)
+{
+    const char *cs = "";
+    if (itstate && (*itstate & 0x0f))
+        cs = s_cc[(*itstate >> 4) & 0xf];
+
+    uint32_t hw = ((uint32_t)hw1 << 16) | hw2;
+
+    /* ── BL T1 ───────────────────────────────────────────────────────── */
+    /* hw1[15:11]=11110, hw2[15:14]=11, hw2[12]=1 */
+    if ((hw1 & 0xf800u) == 0xf000u &&
+        (hw2 & 0xd000u) == 0xd000u) {
+        uint32_t S    = (hw1 >> 10) & 1u;
+        uint32_t imm10= hw1 & 0x3ffu;
+        uint32_t J1   = (hw2 >> 13) & 1u;
+        uint32_t J2   = (hw2 >> 11) & 1u;
+        uint32_t imm11= hw2 & 0x7ffu;
+        uint32_t I1   = ~(J1 ^ S) & 1u;
+        uint32_t I2   = ~(J2 ^ S) & 1u;
+        uint32_t raw  = (S << 23) | (I1 << 22) | (I2 << 21) | (imm10 << 11) | imm11;
+        int32_t  off  = sext(raw, 24);
+        uint32_t dest = pc + 4u + (uint32_t)(off * 2);
+        snprintf(out, out_sz, "bl%s 0x%08x", cs, dest);
+        goto done32;
+    }
+
+    /* ── BLX immediate T2 (branch to ARM, imm[1:0]=10) ──────────────── */
+    if ((hw1 & 0xf800u) == 0xf000u &&
+        (hw2 & 0xd000u) == 0xc000u) {
+        /* BLX imm: skip, show as unknown — Cortex-M stays in Thumb */
+        snprintf(out, out_sz, "<blx-imm 0x%08x>", hw);
+        goto done32;
+    }
+
+    /* ── 32-bit data processing (plain binary immediate): hw1[15:11]=11110, hw1[9:8]=10 */
+    if ((hw1 & 0xfb00u) == 0xf200u) {
+        uint8_t  op5  = (hw1 >> 4) & 0x1fu;   /* bits[8:4] of hw1 */
+        uint8_t  rn   = hw1 & 0xfu;
+        uint8_t  rd   = (hw2 >> 8) & 0xfu;
+        uint16_t imm12 = (uint16_t)(((hw1 >> 10) & 1u) << 11)
+                       | (uint16_t)(((hw2 >> 12) & 0x7u) << 8)
+                       | (hw2 & 0xffu);
+        uint32_t imm32 = (uint32_t)imm12; /* simplified: no ThumbExpandImm for plain */
+
+        switch (op5) {
+        case 0x00: /* ADD T3 */
+            snprintf(out, out_sz, "add%s.w %s, %s, #%u",
+                     cs, s_reg[rd], s_reg[rn], imm32);
+            goto done32;
+        case 0x04: /* MOVW T3: rn holds imm4 (high nibble of 16-bit immediate) */
+            {
+                uint16_t imm16 = (uint16_t)(((uint32_t)(hw1 & 0xfu) << 12)
+                               | ((uint32_t)((hw1 >> 10) & 1u) << 11)
+                               | ((uint32_t)((hw2 >> 12) & 0x7u) << 8)
+                               | (hw2 & 0xffu));
+                snprintf(out, out_sz, "movw%s %s, #%u", cs, s_reg[rd], imm16);
+                goto done32;
+            }
+        case 0x0a: /* SUBW T4 */
+            snprintf(out, out_sz, "sub%s.w %s, %s, #%u",
+                     cs, s_reg[rd], s_reg[rn], imm32);
+            goto done32;
+        case 0x0c: /* MOVT T1: rn holds imm4 (high nibble of 16-bit immediate) */
+            {
+                uint16_t imm16 = (uint16_t)(((uint32_t)(hw1 & 0xfu) << 12)
+                               | ((uint32_t)((hw1 >> 10) & 1u) << 11)
+                               | ((uint32_t)((hw2 >> 12) & 0x7u) << 8)
+                               | (hw2 & 0xffu));
+                snprintf(out, out_sz, "movt%s %s, #%u", cs, s_reg[rd], imm16);
+                goto done32;
+            }
+        }
+    }
+
+    /* ── 32-bit data processing register: hw1[15:11]=11101 ────────────── */
+    if ((hw1 & 0xff00u) == 0xea00u || (hw1 & 0xff00u) == 0xeb00u) {
+        uint8_t S   = (hw1 >> 4) & 1u;
+        uint8_t op4 = (hw1 >> 5) & 0xfu;
+        uint8_t rn  = hw1 & 0xfu;
+        uint8_t rd  = (hw2 >> 8) & 0xfu;
+        uint8_t rm  = hw2 & 0xfu;
+        uint8_t type = (hw2 >> 4) & 0x3u;  /* shift type */
+        /* imm5 = imm3:imm2 — bits[14:12]:bits[7:6] of hw2 (NOT bit[8] which belongs to Rd) */
+        uint8_t imm5 = (uint8_t)(((hw2 >> 12) & 0x7u) << 2) | ((hw2 >> 6) & 0x3u);
+
+        static const char *sh_types[4] = {"lsl","lsr","asr","ror"};
+        const char *sf = S ? "s" : "";
+
+        if (imm5 == 0 && type == 0) {
+            /* no shift */
+            switch (op4) {
+            case 0:
+                if (rd == 0xf) { snprintf(out, out_sz, "tst%s.w %s, %s", cs, s_reg[rn], s_reg[rm]); goto done32; }
+                snprintf(out, out_sz, "and%s%s.w %s, %s, %s", sf, cs, s_reg[rd], s_reg[rn], s_reg[rm]); goto done32;
+            case 1:  snprintf(out, out_sz, "bic%s%s.w %s, %s, %s", sf, cs, s_reg[rd], s_reg[rn], s_reg[rm]); goto done32;
+            case 2:
+                if (rn == 0xf) { snprintf(out, out_sz, "mov%s%s.w %s, %s", sf, cs, s_reg[rd], s_reg[rm]); goto done32; }
+                snprintf(out, out_sz, "orr%s%s.w %s, %s, %s", sf, cs, s_reg[rd], s_reg[rn], s_reg[rm]); goto done32;
+            case 3:
+                if (rn == 0xf) { snprintf(out, out_sz, "mvn%s%s.w %s, %s", sf, cs, s_reg[rd], s_reg[rm]); goto done32; }
+                snprintf(out, out_sz, "orn%s%s.w %s, %s, %s", sf, cs, s_reg[rd], s_reg[rn], s_reg[rm]); goto done32;
+            case 4:  snprintf(out, out_sz, "eor%s%s.w %s, %s, %s", sf, cs, s_reg[rd], s_reg[rn], s_reg[rm]); goto done32;
+            case 8:
+                if (rd == 0xf) { snprintf(out, out_sz, "cmn%s.w %s, %s", cs, s_reg[rn], s_reg[rm]); goto done32; }
+                snprintf(out, out_sz, "add%s%s.w %s, %s, %s", sf, cs, s_reg[rd], s_reg[rn], s_reg[rm]); goto done32;
+            case 10: snprintf(out, out_sz, "adc%s%s.w %s, %s, %s", sf, cs, s_reg[rd], s_reg[rn], s_reg[rm]); goto done32;
+            case 11: snprintf(out, out_sz, "sbc%s%s.w %s, %s, %s", sf, cs, s_reg[rd], s_reg[rn], s_reg[rm]); goto done32;
+            case 13:
+                if (rd == 0xf) { snprintf(out, out_sz, "cmp%s.w %s, %s", cs, s_reg[rn], s_reg[rm]); goto done32; }
+                snprintf(out, out_sz, "sub%s%s.w %s, %s, %s", sf, cs, s_reg[rd], s_reg[rn], s_reg[rm]); goto done32;
+            case 14: snprintf(out, out_sz, "rsb%s%s.w %s, %s, %s", sf, cs, s_reg[rd], s_reg[rn], s_reg[rm]); goto done32;
+            }
+        } else {
+            /* shifted register */
+            snprintf(out, out_sz, "op%u%s.w %s, %s, %s %s #%u",
+                     op4, cs, s_reg[rd], s_reg[rn], s_reg[rm], sh_types[type], imm5);
+            goto done32;
+        }
+    }
+
+    /* ── 32-bit shifts (LSL/LSR/ASR/ROR immediate): hw1[15:11]=11101, hw1[8]=0, rn=1111 */
+    if ((hw1 & 0xffcfu) == 0xea4fu) {   /* MOVS.W with shift — catches LSL/LSR/ASR T2/T3 */
+        uint8_t rd   = (hw2 >> 8) & 0xfu;
+        uint8_t rm   = hw2 & 0xfu;
+        uint8_t type = (hw2 >> 4) & 0x3u;
+        uint8_t imm3 = (hw2 >> 12) & 0x3u;
+        uint8_t imm2 = (hw2 >> 6) & 0x3u;
+        uint8_t imm5 = (uint8_t)(imm3 << 2) | imm2;
+        static const char *sh_imm[4] = {"lsl","lsr","asr","ror"};
+        snprintf(out, out_sz, "%ss%s.w %s, %s, #%u",
+                 sh_imm[type], cs, s_reg[rd], s_reg[rm], imm5);
+        goto done32;
+    }
+
+    /* ── 32-bit Load/Store: hw1[15:12]=1111 ─────────────────────────── */
+    /* LDR T3 (immediate, wide): 1111 1000 1101 xxxx */
+    if ((hw1 & 0xfff0u) == 0xf8d0u) {
+        uint8_t  rn   = hw1 & 0xfu;
+        uint8_t  rt   = (hw2 >> 12) & 0xfu;
+        uint16_t imm12 = hw2 & 0xfffu;
+        if (imm12 == 0)
+            snprintf(out, out_sz, "ldr%s.w %s, [%s]", cs, s_reg[rt], s_reg[rn]);
+        else
+            snprintf(out, out_sz, "ldr%s.w %s, [%s, #%u]", cs, s_reg[rt], s_reg[rn], imm12);
+        goto done32;
+    }
+    /* STR T3 (immediate, wide): 1111 1000 1100 xxxx */
+    if ((hw1 & 0xfff0u) == 0xf8c0u) {
+        uint8_t  rn   = hw1 & 0xfu;
+        uint8_t  rt   = (hw2 >> 12) & 0xfu;
+        uint16_t imm12 = hw2 & 0xfffu;
+        if (imm12 == 0)
+            snprintf(out, out_sz, "str%s.w %s, [%s]", cs, s_reg[rt], s_reg[rn]);
+        else
+            snprintf(out, out_sz, "str%s.w %s, [%s, #%u]", cs, s_reg[rt], s_reg[rn], imm12);
+        goto done32;
+    }
+
+    /* ── 32-bit B conditional T3: hw1[15:11]=11110, hw2[15:14]=10, hw2[12]=0 */
+    if ((hw1 & 0xf800u) == 0xf000u &&
+        (hw2 & 0xd000u) == 0x8000u) {
+        uint8_t cond  = (hw1 >> 6) & 0xfu;
+        if (cond == 0xf || cond == 0xe) goto unknown32;
+        uint32_t S    = (hw1 >> 10) & 1u;
+        uint32_t imm6 = hw1 & 0x3fu;
+        uint32_t J1   = (hw2 >> 13) & 1u;
+        uint32_t J2   = (hw2 >> 11) & 1u;
+        uint32_t imm11 = hw2 & 0x7ffu;
+        uint32_t raw  = (S << 19) | (J2 << 18) | (J1 << 17) | (imm6 << 11) | imm11;
+        int32_t  off  = sext(raw, 20);
+        uint32_t dest = pc + 4u + (uint32_t)(off * 2);
+        snprintf(out, out_sz, "b%s.w 0x%08x", s_cc[cond], dest);
+        goto done32;
+    }
+
+    /* ── 32-bit B unconditional T4: hw1[15:11]=11110, hw2[15:14]=10, hw2[12]=1 */
+    if ((hw1 & 0xf800u) == 0xf000u &&
+        (hw2 & 0xd000u) == 0x9000u) {
+        uint32_t S    = (hw1 >> 10) & 1u;
+        uint32_t imm10= hw1 & 0x3ffu;
+        uint32_t J1   = (hw2 >> 13) & 1u;
+        uint32_t J2   = (hw2 >> 11) & 1u;
+        uint32_t imm11= hw2 & 0x7ffu;
+        uint32_t I1   = ~(J1 ^ S) & 1u;
+        uint32_t I2   = ~(J2 ^ S) & 1u;
+        uint32_t raw  = (S << 23) | (I1 << 22) | (I2 << 21) | (imm10 << 11) | imm11;
+        int32_t  off  = sext(raw, 24);
+        uint32_t dest = pc + 4u + (uint32_t)(off * 2);
+        snprintf(out, out_sz, "b%s.w 0x%08x", cs, dest);
+        goto done32;
+    }
+
+    /* ── MUL T2 (32-bit): 1111 1011 0000 ─────────────────────────────── */
+    if ((hw1 & 0xfff0u) == 0xfb00u && (hw2 & 0xf0f0u) == 0xf000u) {
+        uint8_t rn = hw1 & 0xfu;
+        uint8_t rd = (hw2 >> 8) & 0xfu;
+        uint8_t rm = hw2 & 0xfu;
+        snprintf(out, out_sz, "mul%s %s, %s, %s", cs, s_reg[rd], s_reg[rn], s_reg[rm]);
+        goto done32;
+    }
+
+    /* ── TST/CMP/CMN/TEQ (32-bit): hw1[15:11]=11101, with rd=1111 ─────── */
+    if ((hw1 & 0xff10u) == 0xea10u) {
+        uint8_t rn  = hw1 & 0xfu;
+        uint8_t rm  = hw2 & 0xfu;
+        uint8_t op4 = (hw1 >> 5) & 0xfu;
+        switch (op4) {
+        case 0: snprintf(out, out_sz, "tst%s.w %s, %s", cs, s_reg[rn], s_reg[rm]); goto done32;
+        case 4: snprintf(out, out_sz, "teq%s.w %s, %s", cs, s_reg[rn], s_reg[rm]); goto done32;
+        case 8: snprintf(out, out_sz, "cmn%s.w %s, %s", cs, s_reg[rn], s_reg[rm]); goto done32;
+        case 13: snprintf(out, out_sz, "cmp%s.w %s, %s", cs, s_reg[rn], s_reg[rm]); goto done32;
+        }
+    }
+
+unknown32:
+    snprintf(out, out_sz, "<unknown 0x%04x%04x>", hw1, hw2);
+    if (itstate && (*itstate & 0x0f)) it_advance(itstate);
+    return 4;
+
+done32:
+    if (itstate && (*itstate & 0x0f)) it_advance(itstate);
+    return 4;
+}
+
+/* ── public API ──────────────────────────────────────────────────────────── */
+
+int thumb_dis_one(uint32_t pc, const uint8_t *buf, size_t buf_len,
+                  char *out, size_t out_sz,
+                  uint8_t *itstate)
+{
+    if (!buf || !out || out_sz == 0 || buf_len < 2) {
+        if (out && out_sz > 0) out[0] = '\0';
+        return -1;
+    }
+
+    /* Mask Thumb bit in PC (raw Cortex-M register value may have bit[0]=1). */
+    pc &= ~1u;
+
+    /* Read first halfword (little-endian). */
+    uint16_t hw1 = (uint16_t)buf[0] | ((uint16_t)buf[1] << 8);
+
+    /* 32-bit instruction if bits[15:11] == 0b11101, 0b11110, or 0b11111. */
+    uint8_t top5 = (hw1 >> 11) & 0x1fu;
+    if (top5 == 0x1d || top5 == 0x1e || top5 == 0x1f) {
+        if (buf_len < 4) {
+            snprintf(out, out_sz, "<trunc 0x%04x>", hw1);
+            return -2;  /* buf_len insufficient for 32-bit instruction */
+        }
+        uint16_t hw2 = (uint16_t)buf[2] | ((uint16_t)buf[3] << 8);
+        return decode_32(pc, hw1, hw2, out, out_sz, itstate);
+    }
+
+    return decode_16(pc, hw1, out, out_sz, itstate);
+}
