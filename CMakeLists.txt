@@ -170,3 +170,14 @@ target_include_directories(dwarf_test PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/src
 )
 add_test(NAME dwarf_sym_lookup COMMAND dwarf_test)
+
+# ── ctest: Thumb/Thumb-2 disassembler ────────────────────────────────────────
+add_executable(thumb_dis_test
+  tests/test_thumb_dis.c
+  src/thumb_dis.c
+)
+target_compile_options(thumb_dis_test PRIVATE -Wall -Wextra -Werror -O2)
+target_include_directories(thumb_dis_test PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/src
+)
+add_test(NAME thumb_dis COMMAND thumb_dis_test)
