@@ -24,6 +24,7 @@
 
 #include "debug_tui.h"
 #include "mkdbg.h"
+#include "thumb_dis.h"
 #include "wire_host.h"
 
 #include <stdio.h>
@@ -34,6 +35,7 @@
 
 #define REG_ROWS     8    /* register panel content rows (r0-r12 + sp/lr/pc/xpsr) */
 #define CTX_HALF     4    /* source context: ±4 lines around PC = 9 visible lines */
+#define ASM_ROWS     5    /* Asm panel visible instruction rows */
 #define MAX_DISPLAY  4
 #define TUI_WP_MAX   4
 
@@ -60,6 +62,7 @@ static int      s_regs_ok  = 0;
 static char     s_task_name[32] = "";
 
 static uint32_t s_pc       = 0;
+static int      s_asm_scroll = 0;  /* Asm panel scroll offset (instructions) */
 
 /* ── Box-drawing helpers ─────────────────────────────────────────────────── */
 
@@ -164,6 +167,83 @@ static void draw_source(int y0, int src_h, int w, DwarfDBI *dbi, uint32_t pc)
         bchar(0, y0 + row, "\xe2\x94\x82");
         bchar(w - 1, y0 + row, "\xe2\x94\x82");
         row++;
+    }
+}
+
+/* ── Asm panel ───────────────────────────────────────────────────────────── */
+
+/*
+ * Read memory around PC, disassemble with thumb_dis_one(), and render h rows
+ * of instructions.  The PC instruction is centred; scroll_offset shifts the
+ * view up (negative) or down (positive) by that many instructions.
+ */
+#define ASM_LOOK_BACK  64    /* bytes to try to read before PC */
+#define ASM_LOOK_FWD  128    /* bytes to read after PC */
+#define ASM_BUF_MAX   (ASM_LOOK_BACK + ASM_LOOK_FWD + 4)
+#define ASM_INSN_MAX   80
+
+static void draw_asm(int y0, int h, int w,
+                     DebugSession *s, uint32_t pc, int scroll_offset)
+{
+    /* Separator */
+    bchar(0, y0, "\xe2\x94\x9c");                          /* ├ */
+    tb_print(1, y0, TB_CYAN, TB_DEFAULT, "\xe2\x94\x80 Asm ");
+    hline(y0, 7, w - 1);
+    bchar(w - 1, y0, "\xe2\x94\xa4");                      /* ┤ */
+
+    /* Collect decoded instructions */
+    static struct { uint32_t addr; char text[THUMB_DIS_OUT_MAX]; }
+        insns[ASM_INSN_MAX];
+    int n_insns = 0;
+    int pc_insn = -1;
+
+    uint32_t read_addr = (pc >= ASM_LOOK_BACK) ? (pc - ASM_LOOK_BACK) : 0;
+    read_addr &= ~1u;  /* Thumb 2-byte alignment */
+    size_t want = ASM_LOOK_BACK + ASM_LOOK_FWD;
+
+    uint8_t buf[ASM_BUF_MAX];
+    if (debug_session_read_mem(s, read_addr, want, buf) == WIRE_OK) {
+        uint32_t cur = read_addr;
+        size_t   off = 0;
+        uint8_t  its = 0;
+        while (off + 2 <= want && n_insns < ASM_INSN_MAX) {
+            insns[n_insns].addr = cur;
+            int r = thumb_dis_one(cur, buf + off, want - off,
+                                  insns[n_insns].text, THUMB_DIS_OUT_MAX, &its);
+            if (r < 0) r = 2;   /* skip unknown half-word */
+            if ((cur & ~1u) == (pc & ~1u)) pc_insn = n_insns;
+            n_insns++;
+            off += (size_t)r;
+            cur += (uint32_t)r;
+        }
+    }
+
+    /* Centre view on pc_insn + scroll_offset */
+    int center = (pc_insn >= 0 ? pc_insn : n_insns / 2) + scroll_offset;
+    int start  = center - h / 2;
+    if (start + h > n_insns) start = n_insns - h;
+    if (start < 0) start = 0;
+
+    int content_w = w - 16;   /* 1(│) + 3(arrow+sp) + 10(addr) + 2(sp) = 16 */
+    if (content_w < 1) content_w = 1;
+
+    for (int r = 0; r < h; r++) {
+        bchar(0, y0 + 1 + r, "\xe2\x94\x82");              /* │ */
+        int idx = start + r;
+        if (idx >= 0 && idx < n_insns) {
+            int is_pc = (insns[idx].addr == (pc & ~1u));
+            uintattr_t fg = is_pc ? (TB_WHITE | TB_BOLD) : TB_DEFAULT;
+            uintattr_t bg = is_pc ? TB_BLUE : TB_DEFAULT;
+            if (is_pc)
+                tb_printf(1, y0 + 1 + r, fg, bg,
+                          " \xe2\x96\xba 0x%08x  %-*s",   /* ► */
+                          insns[idx].addr, content_w, insns[idx].text);
+            else
+                tb_printf(1, y0 + 1 + r, fg, bg,
+                          "   0x%08x  %-*s",
+                          insns[idx].addr, content_w, insns[idx].text);
+        }
+        bchar(w - 1, y0 + 1 + r, "\xe2\x94\x82");          /* │ */
     }
 }
 
@@ -306,7 +386,7 @@ static void draw_bottom(int y_border, int y_hint, int w)
     bchar(w - 1, y_border, "\xe2\x94\x98");            /* ┘ */
 
     tb_print(0, y_hint, TB_YELLOW, TB_DEFAULT,
-             "[s]tep [c]ontinue [i]nterrupt [b]reak [d]el [w]atch [m]em [t]cli [q]uit");
+             "[s]tep [c]ontinue [i]nterrupt [b]reak [d]el [w]atch [m]em [t]cli [q]uit  [↑][↓] scroll asm");
 }
 
 /* ── Status bar (replaces hint bar during blocking ops) ──────────────────── */
@@ -330,17 +410,20 @@ static void redraw(DebugSession *s, DwarfDBI *dbi)
 
     /* Compute panel heights */
     int mem_h  = (s_ndisplay > 0) ? s_ndisplay : 1;
-    int src_h  = h - REG_ROWS - mem_h - 6;
-    /* 6 = top_border(1) + reg_sep(1) + mem_sep(1) + bottom_border(1) + hint(1) + 1 spare */
+    int asm_h  = ASM_ROWS;
+    int src_h  = h - REG_ROWS - mem_h - asm_h - 7;
+    /* 7 = top_border(1) + asm_sep(1) + reg_sep(1) + mem_sep(1) + bottom_border(1) + hint(1) + 1 spare */
     if (src_h < 3) src_h = 3;
 
     int y_src_top  = 0;
-    int y_reg_sep  = y_src_top + 1 + src_h;
+    int y_asm_sep  = y_src_top + 1 + src_h;
+    int y_reg_sep  = y_asm_sep + 1 + asm_h;
     int y_mem_sep  = y_reg_sep + 1 + REG_ROWS;
     int y_bottom   = y_mem_sep + 1 + mem_h;
     int y_hint     = y_bottom + 1;
 
     draw_source(y_src_top, src_h, w, dbi, s_pc);
+    draw_asm(y_asm_sep, asm_h, w, s, s_pc, s_asm_scroll);
     draw_reg_bp(y_reg_sep, REG_ROWS, w, s, dbi, s_pc);
     draw_mem(y_mem_sep, mem_h, w, s);
     draw_bottom(y_bottom, y_hint, w);
@@ -444,8 +527,9 @@ int debug_tui_run(DebugSession *s, DwarfDBI *dbi)
     s_nwpts    = 0;
     s_wp_next  = 1;
     s_ndisplay = 0;
-    s_regs_ok  = 0;
-    s_pc       = 0;
+    s_regs_ok    = 0;
+    s_pc         = 0;
+    s_asm_scroll = 0;
     s_task_name[0] = '\0';
 
     /* Read initial register state */
@@ -473,8 +557,17 @@ int debug_tui_run(DebugSession *s, DwarfDBI *dbi)
         int y_hint = h - 1;
 
         /* ── Key dispatch ── */
-        if (ev.ch == 's') {
+        if (ev.key == TB_KEY_ARROW_UP) {
+            s_asm_scroll--;
+            redraw(s, dbi);
+
+        } else if (ev.key == TB_KEY_ARROW_DOWN) {
+            s_asm_scroll++;
+            redraw(s, dbi);
+
+        } else if (ev.ch == 's') {
             draw_status(y_hint, w, "Stepping...");
+            s_asm_scroll = 0;
             int rc = debug_session_step(s);
             if (rc == WIRE_OK && debug_session_read_regs(s, s_regs) == WIRE_OK) {
                 s_regs_ok = 1;
@@ -485,6 +578,7 @@ int debug_tui_run(DebugSession *s, DwarfDBI *dbi)
 
         } else if (ev.ch == 'c') {
             draw_status(y_hint, w, "Running...  (waiting for breakpoint)");
+            s_asm_scroll = 0;
             int rc = debug_session_continue(s);
             if (rc == WIRE_OK && debug_session_read_regs(s, s_regs) == WIRE_OK) {
                 s_regs_ok = 1;
@@ -495,6 +589,7 @@ int debug_tui_run(DebugSession *s, DwarfDBI *dbi)
 
         } else if (ev.ch == 'i') {
             draw_status(y_hint, w, "Sending break-in...  (waiting for halt)");
+            s_asm_scroll = 0;
             int rc = debug_session_interrupt(s);
             if (rc == WIRE_OK && debug_session_read_regs(s, s_regs) == WIRE_OK) {
                 s_regs_ok = 1;
