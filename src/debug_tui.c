@@ -62,6 +62,7 @@ static int      s_regs_ok  = 0;
 static char     s_task_name[32] = "";
 
 static uint32_t s_pc       = 0;
+static int      s_asm_scroll = 0;  /* Asm panel scroll offset (instructions) */
 
 /* ── Box-drawing helpers ─────────────────────────────────────────────────── */
 
@@ -385,7 +386,7 @@ static void draw_bottom(int y_border, int y_hint, int w)
     bchar(w - 1, y_border, "\xe2\x94\x98");            /* ┘ */
 
     tb_print(0, y_hint, TB_YELLOW, TB_DEFAULT,
-             "[s]tep [c]ontinue [i]nterrupt [b]reak [d]el [w]atch [m]em [t]cli [q]uit");
+             "[s]tep [c]ontinue [i]nterrupt [b]reak [d]el [w]atch [m]em [t]cli [q]uit  [↑][↓] scroll asm");
 }
 
 /* ── Status bar (replaces hint bar during blocking ops) ──────────────────── */
@@ -422,7 +423,7 @@ static void redraw(DebugSession *s, DwarfDBI *dbi)
     int y_hint     = y_bottom + 1;
 
     draw_source(y_src_top, src_h, w, dbi, s_pc);
-    draw_asm(y_asm_sep, asm_h, w, s, s_pc, 0);
+    draw_asm(y_asm_sep, asm_h, w, s, s_pc, s_asm_scroll);
     draw_reg_bp(y_reg_sep, REG_ROWS, w, s, dbi, s_pc);
     draw_mem(y_mem_sep, mem_h, w, s);
     draw_bottom(y_bottom, y_hint, w);
@@ -526,8 +527,9 @@ int debug_tui_run(DebugSession *s, DwarfDBI *dbi)
     s_nwpts    = 0;
     s_wp_next  = 1;
     s_ndisplay = 0;
-    s_regs_ok  = 0;
-    s_pc       = 0;
+    s_regs_ok    = 0;
+    s_pc         = 0;
+    s_asm_scroll = 0;
     s_task_name[0] = '\0';
 
     /* Read initial register state */
@@ -555,8 +557,17 @@ int debug_tui_run(DebugSession *s, DwarfDBI *dbi)
         int y_hint = h - 1;
 
         /* ── Key dispatch ── */
-        if (ev.ch == 's') {
+        if (ev.key == TB_KEY_ARROW_UP) {
+            s_asm_scroll--;
+            redraw(s, dbi);
+
+        } else if (ev.key == TB_KEY_ARROW_DOWN) {
+            s_asm_scroll++;
+            redraw(s, dbi);
+
+        } else if (ev.ch == 's') {
             draw_status(y_hint, w, "Stepping...");
+            s_asm_scroll = 0;
             int rc = debug_session_step(s);
             if (rc == WIRE_OK && debug_session_read_regs(s, s_regs) == WIRE_OK) {
                 s_regs_ok = 1;
@@ -567,6 +578,7 @@ int debug_tui_run(DebugSession *s, DwarfDBI *dbi)
 
         } else if (ev.ch == 'c') {
             draw_status(y_hint, w, "Running...  (waiting for breakpoint)");
+            s_asm_scroll = 0;
             int rc = debug_session_continue(s);
             if (rc == WIRE_OK && debug_session_read_regs(s, s_regs) == WIRE_OK) {
                 s_regs_ok = 1;
@@ -577,6 +589,7 @@ int debug_tui_run(DebugSession *s, DwarfDBI *dbi)
 
         } else if (ev.ch == 'i') {
             draw_status(y_hint, w, "Sending break-in...  (waiting for halt)");
+            s_asm_scroll = 0;
             int rc = debug_session_interrupt(s);
             if (rc == WIRE_OK && debug_session_read_regs(s, s_regs) == WIRE_OK) {
                 s_regs_ok = 1;
