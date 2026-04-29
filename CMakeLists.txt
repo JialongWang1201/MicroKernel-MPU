@@ -68,6 +68,8 @@ add_executable(mkdbg-native
   src/seam.c
   src/dashboard.c
   src/wire.c
+  src/uart_transport.c
+  src/rsp_transport.c
   src/debug_session.c
   src/debug_cli.c
   src/debug_tui.c
@@ -104,6 +106,72 @@ set_target_properties(mkdbg-native PROPERTIES
   OUTPUT_NAME "mkdbg-native"
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
 )
+
+# ── probe-bridge: Rust staticlib (optional, requires cargo) ──────────────────
+# Pass -DMKDBG_SKIP_PROBE=ON to disable even when cargo is available.
+option(MKDBG_SKIP_PROBE "Disable probe-bridge integration" OFF)
+find_program(CARGO cargo PATHS "$ENV{HOME}/.cargo/bin" /usr/local/bin /opt/homebrew/bin)
+if(CARGO AND NOT MKDBG_SKIP_PROBE)
+  set(PROBE_BRIDGE_DIR "${CMAKE_SOURCE_DIR}/probe-bridge")
+
+  # When cross-compiling macOS x86_64 from an arm64 host, tell cargo to target
+  # x86_64-apple-darwin so the static lib is ABI-compatible with the C objects.
+  if(APPLE AND CMAKE_OSX_ARCHITECTURES STREQUAL "x86_64")
+    set(_PROBE_CARGO_TARGET "x86_64-apple-darwin")
+    set(PROBE_BRIDGE_LIB
+        "${CMAKE_BINARY_DIR}/probe-bridge/x86_64-apple-darwin/release/libprobe_bridge.a")
+  else()
+    set(_PROBE_CARGO_TARGET "")
+    set(PROBE_BRIDGE_LIB
+        "${CMAKE_BINARY_DIR}/probe-bridge/release/libprobe_bridge.a")
+  endif()
+
+  if(_PROBE_CARGO_TARGET)
+    set(_CARGO_TARGET_ARGS "--target" "${_PROBE_CARGO_TARGET}")
+  else()
+    set(_CARGO_TARGET_ARGS "")
+  endif()
+
+  add_custom_command(
+    OUTPUT  "${PROBE_BRIDGE_LIB}"
+    COMMAND "${CARGO}" build --release
+            --manifest-path "${PROBE_BRIDGE_DIR}/Cargo.toml"
+            --target-dir    "${CMAKE_BINARY_DIR}/probe-bridge"
+            ${_CARGO_TARGET_ARGS}
+    DEPENDS "${PROBE_BRIDGE_DIR}/Cargo.toml"
+            "${PROBE_BRIDGE_DIR}/src/lib.rs"
+            "${PROBE_BRIDGE_DIR}/src/rsp.rs"
+    COMMENT "Building probe-bridge (Rust)"
+    VERBATIM
+  )
+  add_custom_target(probe_bridge_target DEPENDS "${PROBE_BRIDGE_LIB}")
+
+  target_sources(mkdbg-native PRIVATE src/probe_transport.c)
+  target_include_directories(mkdbg-native PRIVATE
+    "${PROBE_BRIDGE_DIR}/include"
+  )
+  target_compile_definitions(mkdbg-native PRIVATE MKDBG_PROBE_SUPPORT=1)
+  target_link_libraries(mkdbg-native PRIVATE "${PROBE_BRIDGE_LIB}")
+  add_dependencies(mkdbg-native probe_bridge_target)
+
+  if(APPLE)
+    target_link_libraries(mkdbg-native PRIVATE
+      "-framework IOKit"
+      "-framework CoreFoundation"
+      "-framework Security"
+    )
+  elseif(UNIX)
+    target_link_libraries(mkdbg-native PRIVATE udev)
+  endif()
+
+  message(STATUS "probe-bridge: enabled (${CARGO})")
+else()
+  if(MKDBG_SKIP_PROBE)
+    message(STATUS "probe-bridge: disabled (MKDBG_SKIP_PROBE=ON)")
+  else()
+    message(STATUS "probe-bridge: disabled (cargo not found)")
+  endif()
+endif()
 
 # ── seam-analyze: standalone causal-chain analysis tool ──────────────────────
 add_executable(seam-analyze

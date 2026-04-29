@@ -137,6 +137,25 @@ int cmd_doctor(const DoctorOptions *opts)
     print_check(command_available(repo->gdb), "gdb", repo->gdb, &failed);
   }
 
+#ifdef MKDBG_PROBE_SUPPORT
+#ifdef __linux__
+  /* On Linux, libusb requires udev rules for non-root USB access. */
+  {
+    int udev_ok =
+        access("/etc/udev/rules.d/69-probe-rs.rules", F_OK) == 0 ||
+        access("/usr/lib/udev/rules.d/69-probe-rs.rules", F_OK) == 0;
+    if (!udev_ok) {
+      print_check(0, "udev",
+                  "69-probe-rs.rules not found — USB probe may need root", NULL);
+      printf("       fix: sudo cp tools/69-probe-rs.rules /etc/udev/rules.d/ "
+             "&& sudo udevadm control --reload\n");
+    } else {
+      print_check(1, "udev", "69-probe-rs.rules installed", NULL);
+    }
+  }
+#endif /* __linux__ */
+#endif /* MKDBG_PROBE_SUPPORT */
+
   return failed ? 1 : 0;
 }
 
