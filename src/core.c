@@ -146,10 +146,10 @@ int cmd_doctor(const DoctorOptions *opts)
     ProbeInfo probes[16];
     int n = probe_list(probes, 16);
     if (n < 0) {
-      print_check(0, "probe", "enumeration error", &failed);
+      print_check(0, "probe", "enumeration error", NULL);
     } else if (n == 0) {
       print_check(0, "probe",
-                  "no probe detected (insert CMSIS-DAP / ST-Link / J-Link)", &failed);
+                  "no probe detected (insert CMSIS-DAP / ST-Link / J-Link)", NULL);
     } else {
       char probe_detail[256];
       snprintf(probe_detail, sizeof(probe_detail), "%s (%d probe%s found)",
@@ -166,11 +166,11 @@ int cmd_doctor(const DoctorOptions *opts)
         access("/usr/lib/udev/rules.d/69-probe-rs.rules", F_OK) == 0;
     if (!udev_ok) {
       print_check(0, "udev",
-                  "69-probe-rs.rules not found — USB probe may need root", &failed);
+                  "69-probe-rs.rules not found — USB probe may need root", NULL);
       printf("       fix: sudo cp tools/69-probe-rs.rules /etc/udev/rules.d/ "
              "&& sudo udevadm control --reload\n");
     } else {
-      print_check(1, "udev", "69-probe-rs.rules installed", &failed);
+      print_check(1, "udev", "69-probe-rs.rules installed", NULL);
     }
   }
 #endif /* __linux__ */
