@@ -53,6 +53,10 @@ jobs:
       # Rust is needed for probe-bridge on native builds.
       # Cross-compile legs skip probe support (MKDBG_SKIP_PROBE=ON) to avoid
       # requiring a cross-Rust toolchain in CI.
+      - name: Install libudev-dev (Linux native, required by probe-rs)
+        if: "matrix.os == 'linux' && !matrix.cross"
+        run: sudo apt-get update -q && sudo apt-get install -y libudev-dev
+
       - name: Install Rust toolchain (native builds)
         if: "!matrix.cross"
         run: rustup toolchain install stable --no-self-update
