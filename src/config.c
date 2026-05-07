@@ -101,7 +101,7 @@ int parse_quoted_value(const char *value, char *out, size_t out_size)
   if (len < 2U || value[len - 1U] != '"') {
     return -1;
   }
-  if (len - 1U >= out_size) {
+  if (len - 2U >= out_size) {
     return -1;
   }
   memmove(out, value + 1, len - 2U);
