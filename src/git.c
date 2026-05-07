@@ -210,15 +210,18 @@ int cmd_git_rev(const GitOptions *opts)
   if (git_repository_head(&head, repo) < 0)
     lg2_die("git_repository_head");
 
-  const git_oid *oid = git_reference_target(
-      git_reference_is_branch(head) ? head : head);
+  const git_oid *oid = git_reference_target(head);
+  git_oid oid_storage;
   if (!oid) {
-    /* Symbolic ref — peel to commit */
+    /* Symbolic ref (e.g. HEAD -> refs/heads/main) — resolve to direct ref */
     git_reference *peeled = NULL;
     if (git_reference_resolve(&peeled, head) < 0)
       lg2_die("git_reference_resolve");
-    oid = git_reference_target(peeled);
+    /* Copy OID before freeing peeled — git_reference_target returns a pointer
+     * into the reference object's internal storage. */
+    git_oid_cpy(&oid_storage, git_reference_target(peeled));
     git_reference_free(peeled);
+    oid = &oid_storage;
   }
 
   git_oid_tostr(sha, sizeof(sha), oid);
