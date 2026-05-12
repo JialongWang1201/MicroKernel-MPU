@@ -159,6 +159,7 @@ typedef struct {
   const char *gdb_commands[MAX_ATTACH_COMMANDS];
   size_t gdb_command_count;
   double server_wait_s;
+  int explain;
   int batch;
   int dry_run;
 } AttachOptions;

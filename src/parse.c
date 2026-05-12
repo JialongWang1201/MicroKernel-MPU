@@ -278,6 +278,8 @@ int parse_attach_args(int argc, char **argv, AttachOptions *opts)
     } else if (strcmp(argv[i], "--chip") == 0) {
       if (i + 1 >= argc) die("missing value for --chip");
       opts->chip = argv[++i];
+    } else if (strcmp(argv[i], "--explain") == 0) {
+      opts->explain = 1;
     } else if (strcmp(argv[i], "--batch") == 0) {
       opts->batch = 1;
     } else if (strcmp(argv[i], "--dry-run") == 0) {
