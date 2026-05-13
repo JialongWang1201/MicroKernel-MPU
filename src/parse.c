@@ -52,6 +52,13 @@ int parse_doctor_args(int argc, char **argv, DoctorOptions *opts)
         die("missing value for --port");
       }
       opts->port = argv[++i];
+    } else if (strcmp(argv[i], "--baud") == 0) {
+      if (i + 1 >= argc) {
+        die("missing value for --baud");
+      }
+      opts->baud = argv[++i];
+    } else if (strcmp(argv[i], "--live") == 0) {
+      opts->live = 1;
     } else if (argv[i][0] == '-') {
       die("unknown doctor argument: %s", argv[i]);
     } else if (opts->repo == NULL) {

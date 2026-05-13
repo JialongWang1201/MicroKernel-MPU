@@ -87,6 +87,8 @@ typedef struct {
   const char *repo;
   const char *target;
   const char *port;
+  const char *baud;
+  int live;
 } DoctorOptions;
 
 typedef struct {
