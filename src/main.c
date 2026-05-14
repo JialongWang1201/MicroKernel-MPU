@@ -240,6 +240,11 @@ int main(int argc, char **argv)
       parse_incident_status_args(argc - 3, argv + 3, &opts);
       return cmd_incident_status(&opts);
     }
+    if (strcmp(argv[2], "export") == 0) {
+      IncidentExportOptions opts;
+      parse_incident_export_args(argc - 3, argv + 3, &opts);
+      return cmd_incident_export(&opts);
+    }
     if (strcmp(argv[2], "close") == 0) {
       if (argc != 3) {
         die("incident close accepts no extra arguments");

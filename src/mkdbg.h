@@ -126,6 +126,10 @@ typedef struct {
 } IncidentStatusOptions;
 
 typedef struct {
+  const char *output;
+} IncidentExportOptions;
+
+typedef struct {
   const char *repo;
   const char *target;
   const char *port;
@@ -325,6 +329,7 @@ int load_current_incident_dir(const char *config_path, char *out, size_t out_siz
 int cmd_incident_open(const IncidentOpenOptions *opts);
 int cmd_incident_status(const IncidentStatusOptions *opts);
 int cmd_incident_close(void);
+int cmd_incident_export(const IncidentExportOptions *opts);
 
 /* ---- parse.c ---- */
 int parse_init_args(int argc, char **argv, InitOptions *opts);
@@ -333,6 +338,7 @@ int parse_repo_add_args(int argc, char **argv, RepoAddOptions *opts);
 int parse_name_command_args(int argc, char **argv, NameCommandOptions *opts, const char *label);
 int parse_incident_open_args(int argc, char **argv, IncidentOpenOptions *opts);
 int parse_incident_status_args(int argc, char **argv, IncidentStatusOptions *opts);
+int parse_incident_export_args(int argc, char **argv, IncidentExportOptions *opts);
 int parse_capture_bundle_args(int argc, char **argv, CaptureBundleOptions *opts);
 int parse_watch_args(int argc, char **argv, WatchOptions *opts);
 int parse_attach_args(int argc, char **argv, AttachOptions *opts);

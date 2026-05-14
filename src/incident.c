@@ -283,3 +283,116 @@ int cmd_incident_close(void)
   printf("closed incident: %s\n", incident_id);
   return 0;
 }
+
+static void read_git_rev(const char *repo_root, char *out, size_t out_size)
+{
+  int pipefd[2];
+  pid_t pid;
+  ssize_t n;
+
+  copy_string(out, out_size, "unknown");
+  if (pipe(pipefd) != 0) {
+    return;
+  }
+  pid = fork();
+  if (pid < 0) {
+    close(pipefd[0]);
+    close(pipefd[1]);
+    return;
+  }
+  if (pid == 0) {
+    close(pipefd[0]);
+    dup2(pipefd[1], STDOUT_FILENO);
+    close(pipefd[1]);
+    execlp("git", "git", "-C", repo_root, "rev-parse", "HEAD", (char *)NULL);
+    _exit(127);
+  }
+  close(pipefd[1]);
+  n = read(pipefd[0], out, out_size > 0U ? out_size - 1U : 0U);
+  close(pipefd[0]);
+  wait_for_pid(pid);
+  if (n > 0 && out_size > 0U) {
+    out[n] = '\0';
+    trim_in_place(out);
+  }
+}
+
+int cmd_incident_export(const IncidentExportOptions *opts)
+{
+  char config_path[PATH_MAX];
+  char incident_id[MAX_NAME];
+  char incident_dir[PATH_MAX];
+  char meta_path[PATH_MAX];
+  char export_dir[PATH_MAX];
+  char manifest_path[PATH_MAX];
+  char repo_root[PATH_MAX];
+  char bundle_path[PATH_MAX];
+  char git_rev[64];
+  MkdbgConfig config;
+  const RepoConfig *repo;
+  IncidentMetadata meta;
+  FILE *f;
+
+  if (find_config_upward(config_path, sizeof(config_path)) != 0) {
+    die("missing %s; run `mkdbg init` first", CONFIG_NAME);
+  }
+  if (load_config_file(config_path, &config) != 0) {
+    die("invalid config: %s", config_path);
+  }
+  if (load_current_incident_id(config_path, incident_id, sizeof(incident_id)) != 0) {
+    die("no active incident to export");
+  }
+  if (load_current_incident_dir(config_path, incident_dir, sizeof(incident_dir)) != 0) {
+    die("failed to resolve active incident directory");
+  }
+  incident_meta_path(incident_dir, meta_path, sizeof(meta_path));
+  if (load_incident_metadata(meta_path, &meta) != 0) {
+    die("missing incident metadata: %s", meta_path);
+  }
+  repo = find_repo_const(&config, meta.repo);
+  if (repo == NULL) {
+    die("repo `%s` not found in %s", meta.repo, config_path);
+  }
+  resolve_repo_root(config_path, repo, repo_root, sizeof(repo_root));
+  read_git_rev(repo_root, git_rev, sizeof(git_rev));
+
+  if (opts->output != NULL) {
+    resolve_path(repo_root, opts->output, export_dir, sizeof(export_dir));
+  } else {
+    join_path(incident_dir, "export", export_dir, sizeof(export_dir));
+  }
+  if (ensure_dir(export_dir) != 0) {
+    die("failed to create export directory: %s", export_dir);
+  }
+
+  join_path(incident_dir, "bundle.json", bundle_path, sizeof(bundle_path));
+  join_path(export_dir, "manifest.txt", manifest_path, sizeof(manifest_path));
+  f = fopen(manifest_path, "w");
+  if (f == NULL) {
+    die("failed to write export manifest: %s", manifest_path);
+  }
+  fprintf(f, "mkdbg incident export\n");
+  fprintf(f, "incident_id: %s\n", meta.id);
+  fprintf(f, "name: %s\n", meta.name);
+  fprintf(f, "status: %s\n", meta.status);
+  fprintf(f, "repo: %s\n", meta.repo);
+  fprintf(f, "repo_root: %s\n", repo_root);
+  fprintf(f, "git_rev: %s\n", git_rev);
+  fprintf(f, "config: %s\n", config_path);
+  fprintf(f, "incident_dir: %s\n", incident_dir);
+  fprintf(f, "metadata: %s\n", meta_path);
+  if (path_exists(bundle_path)) {
+    fprintf(f, "bundle: %s\n", bundle_path);
+    fprintf(f, "replay: mkdbg replay %s\n", bundle_path);
+  } else {
+    fprintf(f, "bundle: <missing>\n");
+  }
+  if (meta.port[0] != '\0') {
+    fprintf(f, "capture: mkdbg capture bundle --port %s\n", meta.port);
+  }
+  fclose(f);
+
+  printf("export: %s\n", export_dir);
+  printf("manifest: %s\n", manifest_path);
+  return 0;
+}

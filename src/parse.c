@@ -141,6 +141,23 @@ int parse_incident_status_args(int argc, char **argv, IncidentStatusOptions *opt
   return 0;
 }
 
+int parse_incident_export_args(int argc, char **argv, IncidentExportOptions *opts)
+{
+  int i;
+  memset(opts, 0, sizeof(*opts));
+  for (i = 0; i < argc; ++i) {
+    if (strcmp(argv[i], "--output") == 0) {
+      if (i + 1 >= argc) {
+        die("missing value for --output");
+      }
+      opts->output = argv[++i];
+    } else {
+      die("unknown incident export argument: %s", argv[i]);
+    }
+  }
+  return 0;
+}
+
 int parse_capture_bundle_args(int argc, char **argv, CaptureBundleOptions *opts)
 {
   int i;
