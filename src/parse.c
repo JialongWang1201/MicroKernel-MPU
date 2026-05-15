@@ -551,3 +551,47 @@ int parse_debug_args(int argc, char **argv, DebugOptions *opts)
   }
   return 0;
 }
+
+int parse_replay_args(int argc, char **argv, ReplayOptions *opts)
+{
+  int i;
+  memset(opts, 0, sizeof(*opts));
+  for (i = 0; i < argc; ++i) {
+    if (strcmp(argv[i], "--json") == 0) {
+      opts->json = 1;
+    } else if (argv[i][0] == '-') {
+      die("unknown replay argument: %s", argv[i]);
+    } else if (opts->bundle == NULL) {
+      opts->bundle = argv[i];
+    } else {
+      die("replay accepts exactly one bundle path");
+    }
+  }
+  if (opts->bundle == NULL) {
+    die("replay requires a bundle path");
+  }
+  return 0;
+}
+
+int parse_diff_args(int argc, char **argv, DiffOptions *opts)
+{
+  int i;
+  memset(opts, 0, sizeof(*opts));
+  for (i = 0; i < argc; ++i) {
+    if (strcmp(argv[i], "--json") == 0) {
+      opts->json = 1;
+    } else if (argv[i][0] == '-') {
+      die("unknown diff argument: %s", argv[i]);
+    } else if (opts->left == NULL) {
+      opts->left = argv[i];
+    } else if (opts->right == NULL) {
+      opts->right = argv[i];
+    } else {
+      die("diff accepts exactly two bundle paths");
+    }
+  }
+  if (opts->left == NULL || opts->right == NULL) {
+    die("diff requires two bundle paths");
+  }
+  return 0;
+}

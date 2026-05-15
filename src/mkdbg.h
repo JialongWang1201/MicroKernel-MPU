@@ -231,6 +231,17 @@ typedef struct {
 } DebugOptions;
 
 typedef struct {
+  const char *bundle;
+  int json;
+} ReplayOptions;
+
+typedef struct {
+  const char *left;
+  const char *right;
+  int json;
+} DiffOptions;
+
+typedef struct {
   char id[MAX_NAME];
   char name[MAX_NAME];
   char status[MAX_NAME];
@@ -255,6 +266,17 @@ typedef struct {
   int  nframes;
   char timestamp[32];
 } WireCrashReport;
+
+typedef struct {
+  char path[PATH_MAX];
+  int halt_signal;
+  int timeout;
+  char pc[WIRE_REG_HEX_LEN];
+  char lr[WIRE_REG_HEX_LEN];
+  char sp[WIRE_REG_HEX_LEN];
+  char cfsr[WIRE_REG_HEX_LEN];
+  char cfsr_decoded[256];
+} BundleSummary;
 
 /* Blocking: run wire-host --dump, parse JSON into *report.
  * Returns 0 on success (halt_signal > 0), 1 on timeout, -1 on error. */
@@ -348,6 +370,8 @@ int parse_action_args(int argc, char **argv, ActionOptions *opts);
 int parse_git_args(int argc, char **argv, GitOptions *opts);
 int parse_serial_args(int argc, char **argv, SerialOptions *opts);
 int parse_debug_args(int argc, char **argv, DebugOptions *opts);
+int parse_replay_args(int argc, char **argv, ReplayOptions *opts);
+int parse_diff_args(int argc, char **argv, DiffOptions *opts);
 
 /* ---- git.c ---- */
 void git_resolve_repo_root(const GitOptions *opts,
@@ -424,6 +448,11 @@ int cmd_attach(const AttachOptions *opts);
 
 /* ---- debug_cli.c ---- */
 int cmd_debug(const DebugOptions *opts);
+
+/* ---- replay.c ---- */
+int load_bundle_summary(const char *path, BundleSummary *summary);
+int cmd_replay(const ReplayOptions *opts);
+int cmd_diff(const DiffOptions *opts);
 
 /* seam analyze subcommand — argv already shifted past "seam" */
 int mkdbg_cmd_seam(int argc, char *argv[]);

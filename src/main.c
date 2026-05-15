@@ -387,6 +387,18 @@ int main(int argc, char **argv)
     return cmd_run(&opts);
   }
 
+  if (strcmp(argv[1], "replay") == 0) {
+    ReplayOptions opts;
+    parse_replay_args(argc - 2, argv + 2, &opts);
+    return cmd_replay(&opts);
+  }
+
+  if (strcmp(argv[1], "diff") == 0) {
+    DiffOptions opts;
+    parse_diff_args(argc - 2, argv + 2, &opts);
+    return cmd_diff(&opts);
+  }
+
   if (strcmp(argv[1], "seam") == 0) {
     if (argc < 3) {
       die("seam requires a subcommand: analyze");
