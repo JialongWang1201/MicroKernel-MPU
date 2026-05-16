@@ -109,7 +109,68 @@ int cmd_replay(const ReplayOptions *opts)
 
 int cmd_diff(const DiffOptions *opts)
 {
-  (void)opts;
-  fprintf(stderr, "mkdbg: diff is not available in this build\n");
-  return 1;
+  BundleSummary a;
+  BundleSummary b;
+  int changed = 0;
+
+  if (load_bundle_summary(opts->left, &a) != 0) {
+    fprintf(stderr, "mkdbg: diff: cannot read %s\n", opts->left);
+    return 1;
+  }
+  if (load_bundle_summary(opts->right, &b) != 0) {
+    fprintf(stderr, "mkdbg: diff: cannot read %s\n", opts->right);
+    return 1;
+  }
+
+  if (opts->json) {
+    printf("{\"left\":\"%s\",\"right\":\"%s\",", a.path, b.path);
+    printf("\"halt_signal_changed\":%s,",
+           a.halt_signal != b.halt_signal ? "true" : "false");
+    printf("\"timeout_changed\":%s,",
+           a.timeout != b.timeout ? "true" : "false");
+    printf("\"pc_changed\":%s,",
+           strcmp(a.pc, b.pc) != 0 ? "true" : "false");
+    printf("\"cfsr_changed\":%s}\n",
+           strcmp(a.cfsr, b.cfsr) != 0 ? "true" : "false");
+    return 0;
+  }
+
+  printf("left:  %s\n", a.path);
+  printf("right: %s\n", b.path);
+  if (a.halt_signal != b.halt_signal) {
+    printf("halt_signal: %d -> %d\n", a.halt_signal, b.halt_signal);
+    changed = 1;
+  }
+  if (a.timeout != b.timeout) {
+    printf("timeout: %d -> %d\n", a.timeout, b.timeout);
+    changed = 1;
+  }
+  if (strcmp(a.pc, b.pc) != 0) {
+    printf("pc: %s -> %s\n", a.pc[0] ? a.pc : "unknown",
+           b.pc[0] ? b.pc : "unknown");
+    changed = 1;
+  }
+  if (strcmp(a.lr, b.lr) != 0) {
+    printf("lr: %s -> %s\n", a.lr[0] ? a.lr : "unknown",
+           b.lr[0] ? b.lr : "unknown");
+    changed = 1;
+  }
+  if (strcmp(a.sp, b.sp) != 0) {
+    printf("sp: %s -> %s\n", a.sp[0] ? a.sp : "unknown",
+           b.sp[0] ? b.sp : "unknown");
+    changed = 1;
+  }
+  if (strcmp(a.cfsr, b.cfsr) != 0) {
+    printf("cfsr: %s -> %s\n", a.cfsr[0] ? a.cfsr : "unknown",
+           b.cfsr[0] ? b.cfsr : "unknown");
+    changed = 1;
+  }
+  if (strcmp(a.cfsr_decoded, b.cfsr_decoded) != 0) {
+    printf("cfsr_decoded changed\n");
+    changed = 1;
+  }
+  if (!changed) {
+    printf("no summary differences\n");
+  }
+  return 0;
 }
