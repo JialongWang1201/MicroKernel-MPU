@@ -76,12 +76,37 @@ static uint32_t s_display[MAX_DISPLAY];
 static int      s_ndisplay = 0;
 
 static uint32_t s_regs[DEBUG_SESSION_MAX_REGS];
+static uint32_t s_prev_regs[DEBUG_SESSION_MAX_REGS];
+static int      s_reg_changed[DEBUG_SESSION_MAX_REGS];
 static int      s_regs_ok  = 0;
 
 static char     s_task_name[32] = "";
 
 static uint32_t s_pc       = 0;
 static int      s_asm_scroll = 0;  /* Asm panel scroll offset (instructions) */
+
+static int tui_read_regs(DebugSession *s)
+{
+    uint32_t next[DEBUG_SESSION_MAX_REGS];
+    int nregs = debug_session_nregs(s);
+    int pc_reg = debug_session_pc_reg(s);
+
+    if (debug_session_read_regs(s, next) != WIRE_OK)
+        return -1;
+    for (int i = 0; i < DEBUG_SESSION_MAX_REGS; i++) {
+        s_reg_changed[i] = 0;
+    }
+    if (s_regs_ok) {
+        memcpy(s_prev_regs, s_regs, sizeof(s_prev_regs));
+        for (int i = 0; i < nregs && i < DEBUG_SESSION_MAX_REGS; i++) {
+            s_reg_changed[i] = (i != pc_reg && s_prev_regs[i] != next[i]);
+        }
+    }
+    memcpy(s_regs, next, sizeof(s_regs));
+    s_regs_ok = 1;
+    s_pc = s_regs[pc_reg];
+    return 0;
+}
 
 /* ── Box-drawing helpers ─────────────────────────────────────────────────── */
 
@@ -437,11 +462,13 @@ static void draw_reg_bp(int x0, int y0, int h, int w, DebugSession *s, DwarfDBI 
             int ri = REG_PAIRS[r][1];
             /* highlight pc with bold */
             uintattr_t pc_fg = TB_WHITE | TB_BOLD;
-            uintattr_t pc_bg = TB_BLUE;
-            uintattr_t lfg = (li == pc_reg) ? pc_fg : TB_DEFAULT;
-            uintattr_t lbg = (li == pc_reg) ? pc_bg : TB_DEFAULT;
-            uintattr_t rfg = (ri == pc_reg) ? pc_fg : TB_DEFAULT;
-            uintattr_t rbg = (ri == pc_reg) ? pc_bg : TB_DEFAULT;
+	            uintattr_t pc_bg = TB_BLUE;
+	            uintattr_t lfg = (li == pc_reg) ? pc_fg :
+	                            (li < nregs && s_reg_changed[li]) ? TB_YELLOW : TB_DEFAULT;
+	            uintattr_t lbg = (li == pc_reg) ? pc_bg : TB_DEFAULT;
+	            uintattr_t rfg = (ri == pc_reg) ? pc_fg :
+	                            (ri < nregs && s_reg_changed[ri]) ? TB_YELLOW : TB_DEFAULT;
+	            uintattr_t rbg = (ri == pc_reg) ? pc_bg : TB_DEFAULT;
             char lbuf[20], rbuf[20];
             if (li < nregs)
                 snprintf(lbuf, sizeof(lbuf), "%-6s 0x%08x",
@@ -996,17 +1023,15 @@ int debug_tui_run(DebugSession *s, DwarfDBI *dbi)
     s_bp_next  = 1;
     s_nwpts    = 0;
     s_wp_next  = 1;
-    s_ndisplay = 0;
-    s_regs_ok    = 0;
-    s_pc         = 0;
-    s_asm_scroll = 0;
-    s_task_name[0] = '\0';
+	    s_ndisplay = 0;
+	    s_regs_ok    = 0;
+	    memset(s_reg_changed, 0, sizeof(s_reg_changed));
+	    s_pc         = 0;
+	    s_asm_scroll = 0;
+	    s_task_name[0] = '\0';
 
-    /* Read initial register state */
-    if (debug_session_read_regs(s, s_regs) == WIRE_OK) {
-        s_regs_ok = 1;
-        s_pc = s_regs[debug_session_pc_reg(s)];
-    }
+	    /* Read initial register state */
+	    tui_read_regs(s);
 
     redraw(s, dbi);
 
@@ -1039,33 +1064,27 @@ int debug_tui_run(DebugSession *s, DwarfDBI *dbi)
             draw_status(y_hint, w, "Stepping...");
             s_asm_scroll = 0;
             int rc = debug_session_step(s);
-            if (rc == WIRE_OK && debug_session_read_regs(s, s_regs) == WIRE_OK) {
-                s_regs_ok = 1;
-                s_pc = s_regs[debug_session_pc_reg(s)];
-                tui_update_task(s, dbi);
-            }
+	            if (rc == WIRE_OK && tui_read_regs(s) == 0) {
+	                tui_update_task(s, dbi);
+	            }
             redraw(s, dbi);
 
         } else if (ev.ch == 'c') {
             draw_status(y_hint, w, "Running...  (waiting for breakpoint)");
             s_asm_scroll = 0;
             int rc = debug_session_continue(s);
-            if (rc == WIRE_OK && debug_session_read_regs(s, s_regs) == WIRE_OK) {
-                s_regs_ok = 1;
-                s_pc = s_regs[debug_session_pc_reg(s)];
-                tui_update_task(s, dbi);
-            }
+	            if (rc == WIRE_OK && tui_read_regs(s) == 0) {
+	                tui_update_task(s, dbi);
+	            }
             redraw(s, dbi);
 
         } else if (ev.ch == 'i') {
             draw_status(y_hint, w, "Sending break-in...  (waiting for halt)");
             s_asm_scroll = 0;
             int rc = debug_session_interrupt(s);
-            if (rc == WIRE_OK && debug_session_read_regs(s, s_regs) == WIRE_OK) {
-                s_regs_ok = 1;
-                s_pc = s_regs[debug_session_pc_reg(s)];
-                tui_update_task(s, dbi);
-            } else if (rc != WIRE_OK) {
+	            if (rc == WIRE_OK && tui_read_regs(s) == 0) {
+	                tui_update_task(s, dbi);
+	            } else if (rc != WIRE_OK) {
                 draw_status(y_hint, w,
                     "Break-in timed out (check wire_poll_break_in in firmware)");
             }
