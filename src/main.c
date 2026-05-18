@@ -59,6 +59,10 @@ static void usage(void)
          C_BOLD, C_RESET, C_DIM, C_RESET);
   printf("  %scapture%s   %scapture and bundle crash artifacts%s\n",
          C_BOLD, C_RESET, C_DIM, C_RESET);
+  printf("  %sreplay%s    %ssummarize a captured crash bundle offline%s\n",
+         C_BOLD, C_RESET, C_DIM, C_RESET);
+  printf("  %sdiff%s      %scompare two captured crash bundles%s\n",
+         C_BOLD, C_RESET, C_DIM, C_RESET);
   printf("  %srepo%s/%starget%s  %smanage repo aliases%s\n",
          C_BOLD, C_RESET, C_BOLD, C_RESET, C_DIM, C_RESET);
   printf("  %srun%s       %srun arbitrary command in repo context%s\n\n",
@@ -240,6 +244,11 @@ int main(int argc, char **argv)
       parse_incident_status_args(argc - 3, argv + 3, &opts);
       return cmd_incident_status(&opts);
     }
+    if (strcmp(argv[2], "export") == 0) {
+      IncidentExportOptions opts;
+      parse_incident_export_args(argc - 3, argv + 3, &opts);
+      return cmd_incident_export(&opts);
+    }
     if (strcmp(argv[2], "close") == 0) {
       if (argc != 3) {
         die("incident close accepts no extra arguments");
@@ -380,6 +389,18 @@ int main(int argc, char **argv)
     RunOptions opts;
     parse_run_args(argc - 2, argv + 2, &opts);
     return cmd_run(&opts);
+  }
+
+  if (strcmp(argv[1], "replay") == 0) {
+    ReplayOptions opts;
+    parse_replay_args(argc - 2, argv + 2, &opts);
+    return cmd_replay(&opts);
+  }
+
+  if (strcmp(argv[1], "diff") == 0) {
+    DiffOptions opts;
+    parse_diff_args(argc - 2, argv + 2, &opts);
+    return cmd_diff(&opts);
   }
 
   if (strcmp(argv[1], "seam") == 0) {

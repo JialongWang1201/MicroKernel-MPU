@@ -7,6 +7,39 @@
 #include "probe_transport.h"
 #endif
 
+static void print_crash_explain(const WireCrashReport *report)
+{
+  printf("\nExplain:\n");
+  if (strstr(report->cfsr_decoded, "STKERR") != NULL ||
+      strstr(report->cfsr_decoded, "MSTKERR") != NULL) {
+    printf("  - Stacking failed on exception entry. Check task stack size, MSP/PSP bounds, and guard patterns.\n");
+  }
+  if (strstr(report->cfsr_decoded, "UNSTKERR") != NULL ||
+      strstr(report->cfsr_decoded, "MUNSTKERR") != NULL) {
+    printf("  - Unstacking failed on exception return. Check for stack corruption before the fault.\n");
+  }
+  if (strstr(report->cfsr_decoded, "PRECISERR") != NULL ||
+      strstr(report->cfsr_decoded, "DACCVIOL") != NULL) {
+    printf("  - A precise data access fault was reported. Inspect the faulting instruction at PC and pointer operands in r0-r3.\n");
+  }
+  if (strstr(report->cfsr_decoded, "IBUSERR") != NULL ||
+      strstr(report->cfsr_decoded, "IACCVIOL") != NULL) {
+    printf("  - Instruction fetch failed. Verify PC is in executable flash/RAM and function pointers are valid.\n");
+  }
+  if (strstr(report->cfsr_decoded, "UNDEFINSTR") != NULL ||
+      strstr(report->cfsr_decoded, "INVSTATE") != NULL ||
+      strstr(report->cfsr_decoded, "INVPC") != NULL) {
+    printf("  - CPU state or return PC is invalid. Check corrupted LR/EXC_RETURN values and Thumb bit handling.\n");
+  }
+  if (strstr(report->cfsr_decoded, "DIVBYZERO") != NULL) {
+    printf("  - Divide by zero trapped. Inspect operands near PC and input validation on that path.\n");
+  }
+  if (report->nframes > 0) {
+    printf("  - First stack-frame candidates are heuristic return addresses; confirm them against the ELF symbols.\n");
+  }
+  printf("  - Capture the ELF and this report together so PC/LR can be resolved exactly later.\n");
+}
+
 int cmd_capture_bundle(const CaptureBundleOptions *opts)
 {
   char config_path[PATH_MAX];
@@ -209,6 +242,9 @@ int cmd_attach(const AttachOptions *opts)
     printf("  CFSR = %s (%s)\n",
            report.cfsr[0] ? report.cfsr : "0x00000000",
            report.cfsr_decoded[0] ? report.cfsr_decoded : "no faults");
+    if (opts->explain) {
+      print_crash_explain(&report);
+    }
     return 0;
   }
 
