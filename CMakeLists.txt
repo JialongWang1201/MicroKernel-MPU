@@ -66,6 +66,7 @@ add_executable(mkdbg-native
   src/action.c
   src/serial.c
   src/seam.c
+  src/replay.c
   src/dashboard.c
   src/wire.c
   src/uart_transport.c

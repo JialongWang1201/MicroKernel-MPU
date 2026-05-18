@@ -52,6 +52,13 @@ int parse_doctor_args(int argc, char **argv, DoctorOptions *opts)
         die("missing value for --port");
       }
       opts->port = argv[++i];
+    } else if (strcmp(argv[i], "--baud") == 0) {
+      if (i + 1 >= argc) {
+        die("missing value for --baud");
+      }
+      opts->baud = argv[++i];
+    } else if (strcmp(argv[i], "--live") == 0) {
+      opts->live = 1;
     } else if (argv[i][0] == '-') {
       die("unknown doctor argument: %s", argv[i]);
     } else if (opts->repo == NULL) {
@@ -130,6 +137,23 @@ int parse_incident_status_args(int argc, char **argv, IncidentStatusOptions *opt
   for (i = 0; i < argc; ++i) {
     if (strcmp(argv[i], "--json") == 0) opts->json = 1;
     else die("unknown incident status argument: %s", argv[i]);
+  }
+  return 0;
+}
+
+int parse_incident_export_args(int argc, char **argv, IncidentExportOptions *opts)
+{
+  int i;
+  memset(opts, 0, sizeof(*opts));
+  for (i = 0; i < argc; ++i) {
+    if (strcmp(argv[i], "--output") == 0) {
+      if (i + 1 >= argc) {
+        die("missing value for --output");
+      }
+      opts->output = argv[++i];
+    } else {
+      die("unknown incident export argument: %s", argv[i]);
+    }
   }
   return 0;
 }
@@ -278,6 +302,8 @@ int parse_attach_args(int argc, char **argv, AttachOptions *opts)
     } else if (strcmp(argv[i], "--chip") == 0) {
       if (i + 1 >= argc) die("missing value for --chip");
       opts->chip = argv[++i];
+    } else if (strcmp(argv[i], "--explain") == 0) {
+      opts->explain = 1;
     } else if (strcmp(argv[i], "--batch") == 0) {
       opts->batch = 1;
     } else if (strcmp(argv[i], "--dry-run") == 0) {
@@ -522,6 +548,50 @@ int parse_debug_args(int argc, char **argv, DebugOptions *opts)
     } else {
       die("debug takes no positional arguments");
     }
+  }
+  return 0;
+}
+
+int parse_replay_args(int argc, char **argv, ReplayOptions *opts)
+{
+  int i;
+  memset(opts, 0, sizeof(*opts));
+  for (i = 0; i < argc; ++i) {
+    if (strcmp(argv[i], "--json") == 0) {
+      opts->json = 1;
+    } else if (argv[i][0] == '-') {
+      die("unknown replay argument: %s", argv[i]);
+    } else if (opts->bundle == NULL) {
+      opts->bundle = argv[i];
+    } else {
+      die("replay accepts exactly one bundle path");
+    }
+  }
+  if (opts->bundle == NULL) {
+    die("replay requires a bundle path");
+  }
+  return 0;
+}
+
+int parse_diff_args(int argc, char **argv, DiffOptions *opts)
+{
+  int i;
+  memset(opts, 0, sizeof(*opts));
+  for (i = 0; i < argc; ++i) {
+    if (strcmp(argv[i], "--json") == 0) {
+      opts->json = 1;
+    } else if (argv[i][0] == '-') {
+      die("unknown diff argument: %s", argv[i]);
+    } else if (opts->left == NULL) {
+      opts->left = argv[i];
+    } else if (opts->right == NULL) {
+      opts->right = argv[i];
+    } else {
+      die("diff accepts exactly two bundle paths");
+    }
+  }
+  if (opts->left == NULL || opts->right == NULL) {
+    die("diff requires two bundle paths");
   }
   return 0;
 }

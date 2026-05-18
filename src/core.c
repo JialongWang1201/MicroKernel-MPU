@@ -156,6 +156,27 @@ int cmd_doctor(const DoctorOptions *opts)
 #endif /* __linux__ */
 #endif /* MKDBG_PROBE_SUPPORT */
 
+  if (opts->live) {
+    WireCrashReport report;
+    if (port == NULL || port[0] == '\0') {
+      print_check(0, "live", "missing port for wire probe", &failed);
+    } else {
+      int rc = wire_probe_dump(port, opts->baud, &report);
+      if (rc < 0) {
+        print_check(0, "live", "wire probe I/O failed", &failed);
+      } else if (report.timeout || report.halt_signal == 0) {
+        print_check(0, "live", "no halted target responded", &failed);
+      } else {
+        char live_detail[160];
+        snprintf(live_detail, sizeof(live_detail), "signal=%d pc=%s cfsr=%s",
+                 report.halt_signal,
+                 report.regs[15][0] ? report.regs[15] : "unknown",
+                 report.cfsr[0] ? report.cfsr : "0x00000000");
+        print_check(1, "live", live_detail, &failed);
+      }
+    }
+  }
+
   return failed ? 1 : 0;
 }
 

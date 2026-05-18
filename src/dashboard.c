@@ -738,6 +738,7 @@ int cmd_dashboard(const DashboardOptions *opts)
   char        config_path[PATH_MAX] = {0};
   char        repo_root[PATH_MAX]   = {0};
   char        elf_path[PATH_MAX]    = {0};
+  char        port_buf[PATH_MAX]    = {0};
   const char *port = NULL;
   int         serial_fd = -1;
   int         baud;
@@ -757,15 +758,20 @@ int cmd_dashboard(const DashboardOptions *opts)
         const RepoConfig *rc = find_repo_const(&cfg, rname);
         if (rc) {
           resolve_repo_root(config_path, rc, repo_root, sizeof(repo_root));
-          if (!port && rc->port[0])
-            port = rc->port;
+          if (rc->port[0]) {
+            copy_string(port_buf, sizeof(port_buf), rc->port);
+            port = port_buf;
+          }
         }
       }
     }
   }
 
   /* --port flag overrides config */
-  if (opts->port) port = opts->port;
+  if (opts->port) {
+    copy_string(port_buf, sizeof(port_buf), opts->port);
+    port = port_buf;
+  }
   baud = opts->baud > 0 ? opts->baud : DEFAULT_BAUD;
 
   /* ── resolve ELF path ── */

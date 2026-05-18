@@ -47,13 +47,16 @@ Then use the common flows:
 
 ```bash
 mkdbg doctor
+mkdbg doctor --live --port /dev/cu.usbmodem21303
 mkdbg build
 mkdbg flash
 mkdbg probe halt
 mkdbg probe flash
 mkdbg incident open --name irq-timeout
 mkdbg incident status
+mkdbg incident export
 mkdbg attach
+mkdbg attach --port /dev/cu.usbmodem21303 --explain
 mkdbg attach --break main --command continue --command bt --batch
 mkdbg capture bundle --port /dev/cu.usbmodem21303
 mkdbg capture bundle --source-log tests/fixtures/triage/sample_snapshot.log --output build/mkdbg.bundle.json
@@ -61,6 +64,8 @@ mkdbg snapshot --port /dev/cu.usbmodem21303
 mkdbg hil --port /dev/cu.usbmodem21303
 mkdbg watch --target microkernel
 mkdbg watch --target microkernel --bundle-json tests/fixtures/triage/sample_bundle.json --render-once
+mkdbg replay build/mkdbg.bundle.json
+mkdbg diff before.bundle.json after.bundle.json
 ```
 
 Scripted attach flows can chain GDB actions without dropping into an
@@ -157,6 +162,7 @@ Current MVP supports:
 - `mkdbg incident open`
 - `mkdbg incident status`
 - `mkdbg incident close`
+- `mkdbg incident export`
 - `mkdbg probe reset`
 - `mkdbg probe halt`
 - `mkdbg probe resume`
@@ -167,6 +173,8 @@ Current MVP supports:
 - `mkdbg hil`
 - `mkdbg snapshot`
 - `mkdbg attach`
+- `mkdbg replay`
+- `mkdbg diff`
 - `mkdbg run`
 - `mkdbg watch`
 - `mkdbg seam analyze`

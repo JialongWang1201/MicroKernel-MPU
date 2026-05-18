@@ -87,6 +87,8 @@ typedef struct {
   const char *repo;
   const char *target;
   const char *port;
+  const char *baud;
+  int live;
 } DoctorOptions;
 
 typedef struct {
@@ -124,6 +126,10 @@ typedef struct {
 } IncidentStatusOptions;
 
 typedef struct {
+  const char *output;
+} IncidentExportOptions;
+
+typedef struct {
   const char *repo;
   const char *target;
   const char *port;
@@ -159,6 +165,7 @@ typedef struct {
   const char *gdb_commands[MAX_ATTACH_COMMANDS];
   size_t gdb_command_count;
   double server_wait_s;
+  int explain;
   int batch;
   int dry_run;
 } AttachOptions;
@@ -224,6 +231,17 @@ typedef struct {
 } DebugOptions;
 
 typedef struct {
+  const char *bundle;
+  int json;
+} ReplayOptions;
+
+typedef struct {
+  const char *left;
+  const char *right;
+  int json;
+} DiffOptions;
+
+typedef struct {
   char id[MAX_NAME];
   char name[MAX_NAME];
   char status[MAX_NAME];
@@ -248,6 +266,17 @@ typedef struct {
   int  nframes;
   char timestamp[32];
 } WireCrashReport;
+
+typedef struct {
+  char path[PATH_MAX];
+  int halt_signal;
+  int timeout;
+  char pc[WIRE_REG_HEX_LEN];
+  char lr[WIRE_REG_HEX_LEN];
+  char sp[WIRE_REG_HEX_LEN];
+  char cfsr[WIRE_REG_HEX_LEN];
+  char cfsr_decoded[256];
+} BundleSummary;
 
 /* Blocking: run wire-host --dump, parse JSON into *report.
  * Returns 0 on success (halt_signal > 0), 1 on timeout, -1 on error. */
@@ -322,6 +351,7 @@ int load_current_incident_dir(const char *config_path, char *out, size_t out_siz
 int cmd_incident_open(const IncidentOpenOptions *opts);
 int cmd_incident_status(const IncidentStatusOptions *opts);
 int cmd_incident_close(void);
+int cmd_incident_export(const IncidentExportOptions *opts);
 
 /* ---- parse.c ---- */
 int parse_init_args(int argc, char **argv, InitOptions *opts);
@@ -330,6 +360,7 @@ int parse_repo_add_args(int argc, char **argv, RepoAddOptions *opts);
 int parse_name_command_args(int argc, char **argv, NameCommandOptions *opts, const char *label);
 int parse_incident_open_args(int argc, char **argv, IncidentOpenOptions *opts);
 int parse_incident_status_args(int argc, char **argv, IncidentStatusOptions *opts);
+int parse_incident_export_args(int argc, char **argv, IncidentExportOptions *opts);
 int parse_capture_bundle_args(int argc, char **argv, CaptureBundleOptions *opts);
 int parse_watch_args(int argc, char **argv, WatchOptions *opts);
 int parse_attach_args(int argc, char **argv, AttachOptions *opts);
@@ -339,6 +370,8 @@ int parse_action_args(int argc, char **argv, ActionOptions *opts);
 int parse_git_args(int argc, char **argv, GitOptions *opts);
 int parse_serial_args(int argc, char **argv, SerialOptions *opts);
 int parse_debug_args(int argc, char **argv, DebugOptions *opts);
+int parse_replay_args(int argc, char **argv, ReplayOptions *opts);
+int parse_diff_args(int argc, char **argv, DiffOptions *opts);
 
 /* ---- git.c ---- */
 void git_resolve_repo_root(const GitOptions *opts,
@@ -415,6 +448,11 @@ int cmd_attach(const AttachOptions *opts);
 
 /* ---- debug_cli.c ---- */
 int cmd_debug(const DebugOptions *opts);
+
+/* ---- replay.c ---- */
+int load_bundle_summary(const char *path, BundleSummary *summary);
+int cmd_replay(const ReplayOptions *opts);
+int cmd_diff(const DiffOptions *opts);
 
 /* seam analyze subcommand — argv already shifted past "seam" */
 int mkdbg_cmd_seam(int argc, char *argv[]);
