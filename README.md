@@ -66,6 +66,7 @@ Full porting guide: [`docs/PORTING.md`](docs/PORTING.md) · Reference implementa
 **Crash report** — decode a fault the moment it happens:
 ```bash
 mkdbg attach --port /dev/ttyUSB0
+mkdbg attach --port /dev/ttyUSB0 --explain
 mkdbg attach --probe --chip STM32F446RETx   # hardware probe
 ```
 
@@ -78,6 +79,13 @@ mkdbg debug --probe --chip STM32F446RETx --elf build/firmware.elf
 **Causal analysis** — trace the event chain that *led* to the crash:
 ```bash
 mkdbg seam analyze capture.cfl
+```
+
+**Incident handoff** — export and compare crash artifacts:
+```bash
+mkdbg incident export
+mkdbg replay .mkdbg/incidents/<id>/bundle.json
+mkdbg diff crash-before.json crash-after.json
 ```
 
 **GDB bridge** — connect `arm-none-eabi-gdb` without a hardware probe:

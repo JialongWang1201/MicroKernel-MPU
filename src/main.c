@@ -59,6 +59,10 @@ static void usage(void)
          C_BOLD, C_RESET, C_DIM, C_RESET);
   printf("  %scapture%s   %scapture and bundle crash artifacts%s\n",
          C_BOLD, C_RESET, C_DIM, C_RESET);
+  printf("  %sreplay%s    %ssummarize a captured crash bundle offline%s\n",
+         C_BOLD, C_RESET, C_DIM, C_RESET);
+  printf("  %sdiff%s      %scompare two captured crash bundles%s\n",
+         C_BOLD, C_RESET, C_DIM, C_RESET);
   printf("  %srepo%s/%starget%s  %smanage repo aliases%s\n",
          C_BOLD, C_RESET, C_BOLD, C_RESET, C_DIM, C_RESET);
   printf("  %srun%s       %srun arbitrary command in repo context%s\n\n",
